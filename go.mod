@@ -1,4 +1,4 @@
-module github.com/JesterSe7en/Setinel-Go
+module github.com/JesterSe7en/Sentinel-Go
 
 go 1.25.6
 
