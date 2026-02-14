@@ -81,9 +81,9 @@ func (c *RateLimitConfig) GetConfigForAlgorithm(algo string) (any, error) {
 }
 
 type RedisConfig struct {
-	MasterName    string   // e.g., "redis-ratelimit"
-	SentinelAddrs []string // e.g., ["192.168.1.102:26379", ...]
-	Password      string   // The secret from your .env or secret file
+	MasterName    string
+	SentinelAddrs []string
+	Password      string
 	DB            int
 }
 
