@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package limiter;
+
+// Generate Go code in this directory
+option go_package = "./internal/pb";
+
+service RateLimiter {
+  // Check if a specific key (IP/UserID) is allowed
+  rpc Allow(AllowRequest) returns (AllowResponse);
+  // Check what algo are available
+  rpc ListAlgorithms(ListAlgorithmsRequest) returns (ListAlgorithmsResponse);
+  // Dynamically update the rate limiting algorithm
+  rpc UpdateAlgorithm(UpdateAlgorithmRequest) returns (UpdateAlgorithmResponse);
+}
+
+message AllowRequest {
+  string key = 1;
+}
+
+message AllowResponse {
+  bool allowed = 1;
+  int32 remaining_tokens = 2;
+}
+
+message ListAlgorithmsRequest {}
+
+message ListAlgorithmsResponse {
+  repeated string algorithms = 1;
+}
+
+message UpdateAlgorithmRequest {
+  string algo = 1;
+}
+
+message UpdateAlgorithmResponse {
+  bool success = 1;
+}
