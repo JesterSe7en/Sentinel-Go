@@ -14,6 +14,10 @@ import (
 	"github.com/JesterSe7en/Sentinel-Go/internal/limiter"
 	"github.com/JesterSe7en/Sentinel-Go/internal/logger"
 	"github.com/JesterSe7en/Sentinel-Go/internal/storage"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // App holds the application's dependencies and configuration.
@@ -64,6 +68,12 @@ func (a *App) Run() error {
 	}
 
 	serverErrors := make(chan error, 1)
+
+	// setup prometheus
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(collectors.NewGoCollector(), collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+
+	mux.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))
 
 	go func() {
 		a.Log.Info("starting_server", "address", a.server.Addr)
