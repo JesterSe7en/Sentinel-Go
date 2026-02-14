@@ -2,31 +2,37 @@ package logger
 
 import (
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
-func TestNew_DefaultOutput(t *testing.T) {
-	log, err := New("", false, false)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if log == nil {
-		t.Fatal("logger should not be nil")
-	}
-	log.Sync()
-}
+func TestNew_DefaultVsFileOutput(t *testing.T) {
+	tmpfile := filepath.Join(t.TempDir(), "test.log")
 
-func TestNew_FileOutput(t *testing.T) {
-	tmpFile := "/tmp/sentinel-test.log"
-	log, err := New(tmpFile, false, false)
+	fileLog, err := New(tmpfile, false, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if log == nil {
-		t.Fatal("logger should not be nil")
+	fileLog.logger.Error("file message")
+	fileLog.Sync()
+
+	content, _ := os.ReadFile(tmpfile)
+	if !strings.Contains(string(content), "file message") {
+		t.Error("expected message in log file")
 	}
-	log.Sync()
-	os.Remove(tmpFile)
+
+	defaultLog, err := New("", false, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defaultLog.logger.Error("stderr message")
+	defaultLog.Sync()
+
+	content2, _ := os.ReadFile(tmpfile)
+	if strings.Contains(string(content2), "stderr message") {
+		t.Error("default logger should not write to file")
+	}
 }
 
 func TestNew_InvalidPath(t *testing.T) {
@@ -37,77 +43,90 @@ func TestNew_InvalidPath(t *testing.T) {
 }
 
 func TestNew_DebugMode(t *testing.T) {
-	log, err := New("", true, false)
+	tmpfile := filepath.Join(t.TempDir(), "test.log")
+
+	log, err := New(tmpfile, true, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if log == nil {
-		t.Fatal("logger should not be nil")
-	}
+	defer log.Sync()
+
+	log.Debug("debug msg")
+	log.Info("info msg")
+	log.Warn("warn msg")
+	log.Error("error msg")
 	log.Sync()
+
+	content, _ := os.ReadFile(tmpfile)
+	output := string(content)
+
+	// All levels should appear in debug mode
+	if !strings.Contains(output, "debug msg") {
+		t.Error("debug mode should log debug messages")
+	}
+	if !strings.Contains(output, "info msg") {
+		t.Error("debug mode should log info messages")
+	}
 }
 
 func TestNew_VerboseMode(t *testing.T) {
-	log, err := New("", false, true)
+	tmpfile := filepath.Join(t.TempDir(), "test.log")
+
+	log, err := New(tmpfile, false, true)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if log == nil {
-		t.Fatal("logger should not be nil")
-	}
+	defer log.Sync()
+
+	log.Debug("debug msg")
+	log.Info("info msg")
+	log.Warn("warn msg")
 	log.Sync()
+
+	content, _ := os.ReadFile(tmpfile)
+	output := string(content)
+
+	// Debug should NOT appear, but info and warn should
+	if strings.Contains(output, "debug msg") {
+		t.Error("verbose mode should not log debug messages")
+	}
+	if !strings.Contains(output, "info msg") {
+		t.Error("verbose mode should log info messages")
+	}
+	if !strings.Contains(output, "warn msg") {
+		t.Error("verbose mode should log warn messages")
+	}
 }
 
-func TestLogger_Info(t *testing.T) {
-	log, err := New("", false, false)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	log.Info("test message", "key", "value")
-	log.Sync()
-}
+func TestNew_DefaultMode(t *testing.T) {
+	tmpfile := filepath.Join(t.TempDir(), "test.log")
 
-func TestLogger_Warn(t *testing.T) {
-	log, err := New("", false, false)
+	log, err := New(tmpfile, false, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	log.Warn("test warning", "key", "value")
-	log.Sync()
-}
+	defer log.Sync()
 
-func TestLogger_Error(t *testing.T) {
-	log, err := New("", false, false)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	log.Error("test error", "key", "value")
+	// Default mode should only log warn and error
+	log.Debug("debug msg")
+	log.Info("info msg")
+	log.Warn("warn msg")
+	log.Error("error msg")
 	log.Sync()
-}
 
-func TestLogger_Debug(t *testing.T) {
-	log, err := New("", true, false)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	log.Debug("test debug", "key", "value")
-	log.Sync()
-}
+	content, _ := os.ReadFile(tmpfile)
+	output := string(content)
 
-func TestLogger_Fatal(t *testing.T) {
-	// Fatal calls os.Exit which cannot be recovered in tests
-	// This test just verifies the method exists and can be called
-	log, err := New("", false, false)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if strings.Contains(output, "debug msg") {
+		t.Error("default mode should not log debug messages")
 	}
-	_ = log.Fatal // Verify method exists
-}
-
-func TestLogger_Sync(t *testing.T) {
-	log, err := New("", false, false)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if strings.Contains(output, "info msg") {
+		t.Error("default mode should not log info messages")
 	}
-	log.Sync()
+	if !strings.Contains(output, "warn msg") {
+		t.Error("default mode should log warn messages")
+	}
+	if !strings.Contains(output, "error msg") {
+		t.Error("default mode should log error messages")
+	}
 }
