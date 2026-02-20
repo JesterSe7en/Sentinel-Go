@@ -26,8 +26,8 @@ A high-performance, distributed rate limiting service built in Go. Sentinel-Go p
 
 ```bash
 docker run -p 8080:8080 -p 50051:50051 \
-  -e REDIS_SENTINELS="redis-sentinel:26379" \
-  -e REDIS_MASTERNAME="redis-ratelimit" \
+  -e REDIS_SENTINELS=<address to redis sentinels> \
+  -e REDIS_MASTERNAME=<redis master name> \
   sentinel-go
 ```
 
@@ -35,7 +35,7 @@ docker run -p 8080:8080 -p 50051:50051 \
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/Sentinel-Go.git
+git clone https://github.com/JesterSe7en/Sentinel-Go.git
 cd Sentinel-Go
 
 # Copy environment configuration
@@ -57,7 +57,7 @@ The server starts on:
 
 Sentinel-Go exposes two protocols:
 
-- **HTTP (port 8080)**: Your protected API endpoints go here. The rate limiter middleware checks each request.
+- **HTTP (port 8080)**: Protected API endpoints go here.  The rate limiter middleware checks each request.
 - **gRPC (port 50051)**: Control plane for managing the rate limiter (list algorithms, switch algorithms, check status).
 
 ### Test Rate Limiting
@@ -93,7 +93,7 @@ grpcurl -plaintext -d '{"algorithm":"LeakyBucket"}' localhost:50051 limiter.Rate
 | `HTTP_PORT` | HTTP server port | 8080 |
 | `GRPC_PORT` | gRPC server port | 50051 |
 | `REDIS_SENTINELS` | Redis Sentinel addresses (comma-separated) | - |
-| `REDIS_MASTERNAME` | Redis Sentinel master name | redis-ratelimit |
+| `REDIS_MASTERNAME` | Redis Sentinel master name | - |
 | `REDIS_PASSWORD` | Redis password | - |
 | `RATE_LIMIT_ALGORITHM` | Initial rate limiting algorithm | TokenBucket |
 
@@ -101,7 +101,8 @@ grpcurl -plaintext -d '{"algorithm":"LeakyBucket"}' localhost:50051 limiter.Rate
 
 ```
 Sentinel-Go/
-├── api/                    # Protocol Buffer definitions
+├── api/v1                  # Protocol Buffer definitions
+│   ├── pb/                 # Generated protobuf code
 ├── cmd/server/             # Application entry point
 ├── internal/
 │   ├── algorithm/          # Algorithm type definitions
@@ -109,7 +110,6 @@ Sentinel-Go/
 │   ├── config/             # Configuration management
 │   ├── limiter/            # Core rate limiting engine
 │   ├── logger/             # Structured logging
-│   ├── pb/                 # Generated protobuf code
 │   └── storage/            # Redis storage layer
 ├── .env.example            # Environment configuration template
 └── Makefile                # Build automation
