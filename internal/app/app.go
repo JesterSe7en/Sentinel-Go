@@ -135,6 +135,6 @@ func (a *App) Run() error {
 func (a *App) initGRPC() error {
 	handler := limiter.NewGRPCHandler(a.engine)
 	a.grpcServer = grpc.NewServer()
-	pb.RegisterServiceRateLimiterServer(a.grpcServer, handler)
+	pb.RegisterRateLimiterServiceServer(a.grpcServer, handler)
 	return nil
 }

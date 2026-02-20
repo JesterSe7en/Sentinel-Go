@@ -2,6 +2,7 @@ package limiter
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -41,22 +42,29 @@ func (e *SentinelEngine) RateLimitMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		key := getClientKey(r)
 
-		allowed, err := e.Allow(r.Context(), key)
+		results, err := e.Allow(r.Context(), key)
 		if err != nil {
 			e.log.Error("rate_limit_check_failed", "key", key, "error", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
 
-		if !allowed {
+		if !results.Allowed {
 			e.log.Warn("request_blocked", "key", key, "path", r.URL.Path)
 			w.WriteHeader(http.StatusTooManyRequests)
+			w.Header().Set("X-RateLimit-Limit", strconv.Itoa(results.Limit))
+			w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(results.Remaining))
+			w.Header().Set("X-RateLimit-Reset", strconv.Itoa(results.Reset))
 			w.Write([]byte("429: Too Many Requests. Sentinel says no."))
 			e.middlewareMetrics.httpRequestRateLimitedTotal.WithLabelValues(r.URL.Path, r.Method, getClientType(r))
 			return
 		}
 
 		e.middlewareMetrics.httpRequestAllowedTotal.WithLabelValues(r.URL.Path, r.Method, getClientType(r))
+		w.Header().Set("X-RateLimit-Limit", strconv.Itoa(results.Limit))
+		w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(results.Remaining))
+		w.Header().Set("X-RateLimit-Reset", strconv.Itoa(results.Reset))
+
 		e.log.Info("request_allowed", "key", key, "path", r.URL.Path)
 		next.ServeHTTP(w, r)
 	})

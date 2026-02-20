@@ -5,7 +5,7 @@ package sentinel.api.v1;
 // Generate Go code in this directory
 option go_package = "./api/v1/pb";
 
-service ServiceRateLimiter {
+service RateLimiterService {
   // Check if a specific key (IP/UserID) is allowed
   rpc Allow(AllowRequest) returns (AllowResponse);
   // Check what algo are available
@@ -22,7 +22,9 @@ message AllowRequest {
 
 message AllowResponse {
   bool allowed = 1;
-  int32 remaining_tokens = 2;
+  int32 limit = 2;
+  int32 remaining = 3;
+  int32 reset = 4;
 }
 
 message ListAlgorithmsRequest {}

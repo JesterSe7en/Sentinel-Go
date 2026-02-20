@@ -42,4 +42,5 @@ end
 
 redis.call("HSET", key, "tokens", tokens, "last_refill", last_refill)
 
-return allowed
+-- gRPC response expects allowed, limit, remaining, reset
+return { allowed, capacity, tokens, last_refill + 1 }

@@ -33,11 +33,11 @@ local overlap_percentage = time_in_previous_bucket / bucketSize
 
 local estimated_count = current_count + (previous_count * overlap_percentage)
 
-if estimated_count < limit then
-	redis.call("INCR", current_key)
-	redis.call("EXPIRE", current_key, bucketSize * 2)
 
-	return 1
+if estimated_count < limit then
+    redis.call("INCR", current_key)
+    redis.call("EXPIRE", current_key, bucketSize * 2)
 end
 
-return 0
+-- gRPC response expects allowed, limit, remaining, reset
+return { estimated_count <= limit, limit, limit - estimated_count, windowSize }

@@ -7,7 +7,8 @@ if current == 1 then
     redis.call("EXPIRE", key, window)
 end
 
-if current > limit then
-	return 0
-end
-return 1
+
+
+-- gRPC response expects allowed, limit, remaining, reset
+
+return { current <= limit, limit, limit - current, window }

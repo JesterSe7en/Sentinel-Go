@@ -29,7 +29,7 @@ func registerGRPCMetrics(reg prometheus.Registerer) *GRPCMetrics {
 
 // GRPCHandler "implements" the interface dfined in your proto file
 type GRPCHandler struct {
-	pb.UnimplementedServiceRateLimiterServer
+	pb.UnimplementedRateLimiterServiceServer
 	engine *SentinelEngine
 }
 
@@ -39,10 +39,13 @@ func NewGRPCHandler(e *SentinelEngine) *GRPCHandler {
 
 // Allow is the function that actually answers the gRPC request
 func (h *GRPCHandler) Allow(ctx context.Context, req *pb.AllowRequest) (*pb.AllowResponse, error) {
+	results, err := h.engine.Allow(ctx, req.Key)
 	return &pb.AllowResponse{
-		Allowed:         false,
-		RemainingTokens: 0, // You can expand your engine to return the actual count
-	}, nil
+		Allowed:   results.Allowed,
+		Limit:     int32(results.Limit),
+		Remaining: int32(results.Remaining),
+		Reset_:    int32(results.Reset),
+	}, err
 }
 
 func (h *GRPCHandler) ListAlgorithms(ctx context.Context, req *pb.ListAlgorithmsRequest) (*pb.ListAlgorithmsResponse, error) {

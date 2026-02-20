@@ -23,8 +23,9 @@ redis.call("ZREMRANGEBYSCORE", key, 0, window_start)
 local current_count = redis.call("ZCARD", key)
 
 if current_count < limit then
-	redis.call("ZADD", key, now, now)
-	redis.call("EXPIRE", key, windowSize)
-	return 1
+    redis.call("ZADD", key, now, now)
+    redis.call("EXPIRE", key, windowSize)
 end
-return 0
+
+-- gRPC response expects allowed, limit, remaining, reset
+return { current_count <= limit, limit, limit - current_count, windowSize }

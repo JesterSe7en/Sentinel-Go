@@ -40,4 +40,6 @@ end
 
 redis.call("HSET", key, "level", level, "last_leak_time", last_leak_time)
 
-return allowed
+
+-- gRPC response expects allowed, limit, remaining, reset
+return { allowed, capacity, level, last_leak_time + 1 }

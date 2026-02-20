@@ -89,35 +89,35 @@ func NewSentinelEngine(rdb *storage.RedisStorage, log *logger.Logger, cfg *confi
 	return engine, nil
 }
 
-func (se *SentinelEngine) Allow(ctx context.Context, key string) (bool, error) {
+func (se *SentinelEngine) Allow(ctx context.Context, key string) (storage.RateLimitResult, error) {
 	configTimer := prometheus.NewTimer(se.engineMetrics.sentinelConfigFetchDuration.WithLabelValues("lookup"))
 	algo, err := se.GetCurrentAlgorithm(ctx)
 	configTimer.ObserveDuration()
 	if err != nil {
 		se.engineMetrics.sentinelAllowErrorsTotal.WithLabelValues("redis_error").Inc()
-		return false, err
+		return storage.RateLimitResult{}, err
 	}
 
 	changeTo, err := algorithm.ParseAlgorithm(algo)
 	if err != nil {
-		return false, err
+		return storage.RateLimitResult{}, err
 	}
 
 	timer := prometheus.NewTimer(se.engineMetrics.sentinelCheckDuration.WithLabelValues(changeTo.String()))
 
-	success, err := se.checkAllow(ctx, key, changeTo)
+	results, err := se.checkAllow(ctx, key, changeTo)
 
 	timer.ObserveDuration()
 
-	if !success {
+	if !results.Allowed {
 		decision := "blocked"
-		se.engineMetrics.sentinelRequestTotal.WithLabelValues(decision, changeTo.String(), "FIX THIS").Inc()
+		se.engineMetrics.sentinelRequestTotal.WithLabelValues(decision, changeTo.String(), getClientTypeFromKey(key)).Inc()
 	} else {
 		decision := "allowed"
-		se.engineMetrics.sentinelRequestTotal.WithLabelValues(decision, changeTo.String(), "FIX THIS").Inc()
+		se.engineMetrics.sentinelRequestTotal.WithLabelValues(decision, changeTo.String(), getClientTypeFromKey(key)).Inc()
 	}
 
-	return success, err
+	return results, err
 }
 
 func (se *SentinelEngine) ListAlgorithm() []string {
@@ -154,17 +154,28 @@ func (se *SentinelEngine) UpdateAlgorithm(ctx context.Context, algo algorithm.Ra
 	return nil
 }
 
-func (se *SentinelEngine) checkAllow(ctx context.Context, key string, algo algorithm.RateLimitAlgorithm) (bool, error) {
+func (se *SentinelEngine) checkAllow(ctx context.Context, key string, algo algorithm.RateLimitAlgorithm) (storage.RateLimitResult, error) {
 	cfg, err := se.rateLimitConfig.GetConfigForAlgorithm(algo.String())
 	if err != nil {
 		se.engineMetrics.sentinelAllowErrorsTotal.WithLabelValues("config_error").Inc()
-		return false, fmt.Errorf("failed to get config for algorithm: %w", err)
+		return storage.RateLimitResult{}, fmt.Errorf("failed to get config for algorithm: %w", err)
 	}
 
-	success, err := se.rdb.ExecuteScript(ctx, key, algo, cfg)
+	results, err := se.rdb.ExecuteScript(ctx, key, algo, cfg)
 	if err != nil {
-		return false, fmt.Errorf("error running script: %w", err)
+		return storage.RateLimitResult{}, fmt.Errorf("error running script: %w", err)
 	}
 
-	return success, nil
+	if !results.Allowed {
+		se.engineMetrics.sentinelAllowErrorsTotal.WithLabelValues("rate_limit_exceeded").Inc()
+	}
+
+	return results, nil
+}
+
+func getClientTypeFromKey(key string) string {
+	if len(key) > 7 && key[:7] == "apikey:" {
+		return "apikey"
+	}
+	return "ip"
 }

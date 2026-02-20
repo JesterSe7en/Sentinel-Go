@@ -90,6 +90,13 @@ type RedisStorage struct {
 	stopCh  chan struct{}
 }
 
+type RateLimitResult struct {
+	Allowed   bool
+	Limit     int
+	Remaining int
+	Reset     int
+}
+
 // gets executed before everything in this package - init is "special"
 func init() {
 	for algoName, scriptPath := range algoRegistry {
@@ -224,12 +231,12 @@ func (rs *RedisStorage) collectPoolMetrics() {
 	}
 }
 
-func (rs *RedisStorage) ExecuteScript(ctx context.Context, key string, algo algorithm.RateLimitAlgorithm, algoConfig any) (bool, error) {
+func (rs *RedisStorage) ExecuteScript(ctx context.Context, key string, algo algorithm.RateLimitAlgorithm, algoConfig any) (RateLimitResult, error) {
 	if key == "" {
-		return false, fmt.Errorf("key is nil")
+		return RateLimitResult{}, fmt.Errorf("key is nil")
 	}
 	if !algo.IsValid() {
-		return false, fmt.Errorf("unknown algorithm %s", algo.String())
+		return RateLimitResult{}, fmt.Errorf("unknown algorithm %s", algo.String())
 	}
 
 	algoStr := algo.String()
@@ -242,25 +249,33 @@ func (rs *RedisStorage) ExecuteScript(ctx context.Context, key string, algo algo
 	scriptToRun := Scripts[algoStr]
 	args := getArgsFromConfig(algoConfig)
 
-	result, err := scriptToRun.Run(ctx, rs.rdb, []string{key}, args).Int()
+	results, err := scriptToRun.Run(ctx, rs.rdb, []string{key}, args).Int64Slice()
+
+	// format will always be {allowed, limit, remaining, reset}
+	// matching gRPC response format
+	allowed, limit, remaining, reset := results[0], results[1], results[2], results[3]
 
 	scriptDuration := time.Since(scriptStart).Seconds()
 	if err != nil {
 		rs.metrics.operationDuration.WithLabelValues("script", "error").Observe(scriptDuration)
 		rs.metrics.operationError.WithLabelValues("script", getErrorType(err)).Inc()
 		rs.metrics.rateLimiterDecisionTotal.WithLabelValues(key, "error", algoStr).Inc()
-		return false, err
+		return RateLimitResult{}, err
 	}
 	rs.metrics.operationDuration.WithLabelValues("script", "success").Observe(scriptDuration)
 
-	allowed := result == 1
 	decision := "allowed"
-	if !allowed {
+	if allowed == 0 {
 		decision = "rejected"
 	}
 	rs.metrics.rateLimiterDecisionTotal.WithLabelValues(key, decision, algoStr).Inc()
 
-	return allowed, nil
+	return RateLimitResult{
+		Allowed:   allowed == 1,
+		Limit:     int(limit),
+		Remaining: int(remaining),
+		Reset:     int(reset),
+	}, nil
 }
 
 func GetAlgorithmNames() []string {
