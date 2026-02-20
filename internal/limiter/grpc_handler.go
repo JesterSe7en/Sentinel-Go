@@ -6,13 +6,30 @@ package limiter
 import (
 	"context"
 
+	"github.com/JesterSe7en/Sentinel-Go/api/v1/pb"
 	"github.com/JesterSe7en/Sentinel-Go/internal/algorithm"
-	"github.com/JesterSe7en/Sentinel-Go/internal/pb"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
-// GRPCHandler "implements" the interface defined in your proto file
+type GRPCMetrics struct {
+	grpcAllowRequestTotal *prometheus.CounterVec
+}
+
+func registerGRPCMetrics(reg prometheus.Registerer) *GRPCMetrics {
+	return &GRPCMetrics{
+		grpcAllowRequestTotal: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "grpc_allow_request_total",
+				Help: "Total number of requests allowed via gRPC.",
+			},
+			[]string{"decision", "algorithm"},
+		),
+	}
+}
+
+// GRPCHandler "implements" the interface dfined in your proto file
 type GRPCHandler struct {
-	pb.UnimplementedRateLimiterServer
+	pb.UnimplementedServiceRateLimiterServer
 	engine *SentinelEngine
 }
 
@@ -22,18 +39,13 @@ func NewGRPCHandler(e *SentinelEngine) *GRPCHandler {
 
 // Allow is the function that actually answers the gRPC request
 func (h *GRPCHandler) Allow(ctx context.Context, req *pb.AllowRequest) (*pb.AllowResponse, error) {
-	// allowed, err := h.engine.Allow(ctx, req.Key, []any{})
-	// if err != nil {
-	// 	return nil, err
-	// }
-	//
 	return &pb.AllowResponse{
 		Allowed:         false,
 		RemainingTokens: 0, // You can expand your engine to return the actual count
 	}, nil
 }
 
-func (h *GRPCHandler) ListAlgorithms(req *pb.ListAlgorithmsRequest) (*pb.ListAlgorithmsResponse, error) {
+func (h *GRPCHandler) ListAlgorithms(ctx context.Context, req *pb.ListAlgorithmsRequest) (*pb.ListAlgorithmsResponse, error) {
 	return &pb.ListAlgorithmsResponse{
 		Algorithms: h.engine.ListAlgorithm(),
 	}, nil
@@ -51,4 +63,16 @@ func (h *GRPCHandler) UpdateAlgorithm(ctx context.Context, req *pb.UpdateAlgorit
 	return &pb.UpdateAlgorithmResponse{
 		Success: err != nil,
 	}, err
+}
+
+func (h *GRPCHandler) GetCurrentAlgorithm(ctx context.Context, req *pb.GetCurrentAlgorithmRequest) (*pb.GetCurrentAlgorithmResponse, error) {
+	algo, err := h.engine.GetCurrentAlgorithm(ctx)
+	if err != nil {
+		return &pb.GetCurrentAlgorithmResponse{
+			Algorithm: "",
+		}, err
+	}
+	return &pb.GetCurrentAlgorithmResponse{
+		Algorithm: algo,
+	}, nil
 }
