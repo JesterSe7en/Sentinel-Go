@@ -1,17 +1,19 @@
 syntax = "proto3";
 
-package limiter;
+package sentinel.api.v1;
 
 // Generate Go code in this directory
-option go_package = "./internal/pb";
+option go_package = "./api/v1/pb";
 
-service RateLimiter {
+service ServiceRateLimiter {
   // Check if a specific key (IP/UserID) is allowed
   rpc Allow(AllowRequest) returns (AllowResponse);
   // Check what algo are available
   rpc ListAlgorithms(ListAlgorithmsRequest) returns (ListAlgorithmsResponse);
   // Dynamically update the rate limiting algorithm
   rpc UpdateAlgorithm(UpdateAlgorithmRequest) returns (UpdateAlgorithmResponse);
+  // Check what current algorithm is being used
+  rpc GetCurrentAlgorithm(GetCurrentAlgorithmRequest) returns (GetCurrentAlgorithmResponse);
 }
 
 message AllowRequest {
@@ -35,4 +37,10 @@ message UpdateAlgorithmRequest {
 
 message UpdateAlgorithmResponse {
   bool success = 1;
+}
+
+message GetCurrentAlgorithmRequest {}
+
+message GetCurrentAlgorithmResponse {
+  string algorithm = 1;
 }

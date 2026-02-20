@@ -4,7 +4,7 @@ CMD_DIR=cmd/server
 
 .PHONY: proto
 proto:
-	protoc --go_out=. --go-grpc_out=. api/limiter.proto
+	protoc --go_out=. --go-grpc_out=. api/v1/limiter.proto
 
 .PHONY: build
 build: proto
