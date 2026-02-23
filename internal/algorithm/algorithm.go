@@ -1,6 +1,8 @@
 package algorithm
 
-import "fmt"
+import (
+	"errors"
+)
 
 type RateLimitAlgorithm string
 
@@ -10,6 +12,11 @@ const (
 	AlgorithmFixedWindow          RateLimitAlgorithm = "FixedWindow"
 	AlgorithmSlidingWindowLog     RateLimitAlgorithm = "SlidingWindowLog"
 	AlgorithmSlidingWindowCounter RateLimitAlgorithm = "SlidingWindowCounter"
+)
+
+var (
+	ErrEmptyAlgorithm   = errors.New("algorithm: name cannot be empty")
+	ErrUnknownAlgorithm = errors.New("algorithm: unknown algorithm")
 )
 
 func (a RateLimitAlgorithm) String() string {
@@ -26,9 +33,12 @@ func (a RateLimitAlgorithm) IsValid() bool {
 }
 
 func ParseAlgorithm(s string) (RateLimitAlgorithm, error) {
+	if s == "" {
+		return "", ErrEmptyAlgorithm
+	}
 	algo := RateLimitAlgorithm(s)
 	if !algo.IsValid() {
-		return "", fmt.Errorf("invalid algorithm: %s", s)
+		return "", ErrUnknownAlgorithm
 	}
 	return algo, nil
 }
