@@ -79,3 +79,24 @@ func (h *GRPCHandler) GetCurrentAlgorithm(ctx context.Context, req *pb.GetCurren
 		Algorithm: algo,
 	}, nil
 }
+
+func (h *GRPCHandler) GetFailOpen(ctx context.Context, req *pb.GetFailOpenRequest) (*pb.GetFailOpenResponse, error) {
+	failopen, err := h.engine.GetFailOpen(ctx)
+	if err != nil {
+		return &pb.GetFailOpenResponse{
+			Failopen: false,
+		}, err
+	}
+
+	return &pb.GetFailOpenResponse{
+		Failopen: failopen,
+	}, nil
+}
+
+func (h *GRPCHandler) SetFailOpen(ctx context.Context, req *pb.SetFailOpenRequest) (*pb.SetFailOpenResponse, error) {
+	success, err := h.engine.SetFailOpen(ctx, req.Failopen)
+	if err != nil {
+		return &pb.SetFailOpenResponse{Success: false}, err
+	}
+	return &pb.SetFailOpenResponse{Success: success}, nil
+}

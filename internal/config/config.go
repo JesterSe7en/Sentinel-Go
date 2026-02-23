@@ -26,6 +26,7 @@ type BootstrapConfig struct {
 
 type RateLimitConfig struct {
 	Algorithm            string
+	FailOpen             bool
 	TokenBucket          *TokenBucketConfig
 	LeakyBucket          *LeakyBucketConfig
 	FixedWindow          *FixedWindowConfig
@@ -116,6 +117,7 @@ func Load() (*SentinelAppConfig, error) {
 func defaultRateLimitConfig() RateLimitConfig {
 	return RateLimitConfig{
 		Algorithm: os.Getenv("RATE_LIMIT_ALGORITHM"),
+		FailOpen:  os.Getenv("RATE_LIMIT_FAIL_OPEN") == "true", // true = fail open (allow request), false = fail closed (block all requests)
 		TokenBucket: &TokenBucketConfig{
 			RefillRate: 1,
 			Capacity:   5,

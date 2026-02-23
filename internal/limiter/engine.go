@@ -3,6 +3,7 @@ package limiter
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/JesterSe7en/Sentinel-Go/internal/algorithm"
 	"github.com/JesterSe7en/Sentinel-Go/internal/config"
@@ -10,6 +11,7 @@ import (
 	"github.com/JesterSe7en/Sentinel-Go/internal/storage"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/redis/go-redis/v9"
 )
 
 type SentinelEngine struct {
@@ -19,6 +21,15 @@ type SentinelEngine struct {
 	engineMetrics     *SentinelEngineMetrics
 	middlewareMetrics *MiddlewareMetrics
 	grpcMetrics       *GRPCMetrics
+}
+
+type EngineInterface interface {
+	Allow(ctx context.Context, key string) (storage.RateLimitResult, error)
+	ListAlgorithm() []string
+	GetCurrentAlgorithm(ctx context.Context) (string, error)
+	UpdateAlgorithm(ctx context.Context, algo algorithm.RateLimitAlgorithm) error
+	GetFailOpen(ctx context.Context) (bool, error)
+	SetFailOpen(ctx context.Context, failOpen bool) (bool, error)
 }
 
 type SentinelEngineMetrics struct {
@@ -62,6 +73,7 @@ func registerSentinelEngineMetrics(reg prometheus.Registerer) *SentinelEngineMet
 }
 
 const algorithmConfigKey = "sentinel:global:algorithm"
+const failOpenConfigKey = "sentinel:global:failopen"
 
 func NewSentinelEngine(rdb *storage.RedisStorage, log *logger.Logger, cfg *config.SentinelAppConfig, reg prometheus.Registerer) (*SentinelEngine, error) {
 	initialAlgo, err := algorithm.ParseAlgorithm(cfg.RateLimitCfg.Algorithm)
@@ -85,6 +97,19 @@ func NewSentinelEngine(rdb *storage.RedisStorage, log *logger.Logger, cfg *confi
 	if err != nil {
 		return nil, fmt.Errorf("failed to set default algorithm: %w", err)
 	}
+
+	failOpenStr, err := engine.rdb.Get(context.Background(), failOpenConfigKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get fail open config: %w", err)
+	}
+
+	// override fail open config if it exists on redis
+	failOpen, err := strconv.ParseBool(failOpenStr)
+	if err == redis.Nil {
+		engine.rateLimitConfig.FailOpen = failOpen
+	}
+
+	// if not, stick to the env variable setting
 
 	return engine, nil
 }
@@ -171,6 +196,22 @@ func (se *SentinelEngine) checkAllow(ctx context.Context, key string, algo algor
 	}
 
 	return results, nil
+}
+
+func (se *SentinelEngine) GetFailOpen(ctx context.Context) (bool, error) {
+	result, err := se.rdb.Get(ctx, failOpenConfigKey)
+	if err != nil {
+		return false, fmt.Errorf("failed to get fail open config: %w", err)
+	}
+
+	return strconv.ParseBool(result)
+}
+
+func (se *SentinelEngine) SetFailOpen(ctx context.Context, failOpen bool) (bool, error) {
+	se.rateLimitConfig.FailOpen = failOpen
+
+	return se.rdb.Set(ctx, failOpenConfigKey, strconv.FormatBool(failOpen), 0)
+
 }
 
 func getClientTypeFromKey(key string) string {
