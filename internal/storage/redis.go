@@ -278,6 +278,10 @@ func (rs *RedisStorage) ExecuteScript(ctx context.Context, key string, algo algo
 	}, nil
 }
 
+func (rs *RedisStorage) PingRDB(ctx context.Context) error {
+	return rs.rdb.Ping(ctx).Err()
+}
+
 func GetAlgorithmNames() []string {
 	return []string{
 		"TokenBucket",

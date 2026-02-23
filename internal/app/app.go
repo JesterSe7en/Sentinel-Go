@@ -91,6 +91,19 @@ func (a *App) Run() error {
 	})
 
 	mux.Handle("/data", a.engine.RateLimitMiddleware(mockAPI))
+	mux.Handle("/health", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	}))
+	mux.Handle("/ready", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		err := a.engine.PingRDB(context.Background())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("READY"))
+	}))
 
 	a.httpServer = &http.Server{
 		Addr:    ":8080",
