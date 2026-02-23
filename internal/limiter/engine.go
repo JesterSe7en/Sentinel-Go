@@ -2,8 +2,10 @@ package limiter
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/JesterSe7en/Sentinel-Go/internal/algorithm"
 	"github.com/JesterSe7en/Sentinel-Go/internal/config"
@@ -16,11 +18,19 @@ import (
 
 type SentinelEngine struct {
 	log               *logger.Logger
-	rdb               *storage.RedisStorage
+	rdb               RedisBackend
 	rateLimitConfig   *config.RateLimitConfig
 	engineMetrics     *SentinelEngineMetrics
 	middlewareMetrics *MiddlewareMetrics
 	grpcMetrics       *GRPCMetrics
+}
+
+type RedisBackend interface {
+	Get(ctx context.Context, key string) (string, error)
+	Set(ctx context.Context, key string, value any, ttl time.Duration) (bool, error)
+	SetNX(ctx context.Context, key string, value any, ttl time.Duration) (bool, error)
+	ExecuteScript(ctx context.Context, key string, algo algorithm.RateLimitAlgorithm, cfg any) (storage.RateLimitResult, error)
+	PingRDB(ctx context.Context) error
 }
 
 type EngineInterface interface {
@@ -75,7 +85,7 @@ func registerSentinelEngineMetrics(reg prometheus.Registerer) *SentinelEngineMet
 const algorithmConfigKey = "sentinel:global:algorithm"
 const failOpenConfigKey = "sentinel:global:failopen"
 
-func NewSentinelEngine(rdb *storage.RedisStorage, log *logger.Logger, cfg *config.SentinelAppConfig, reg prometheus.Registerer) (*SentinelEngine, error) {
+func newSentinelEngineWithBackend(rdb RedisBackend, cfg *config.SentinelAppConfig, reg prometheus.Registerer) (*SentinelEngine, error) {
 	initialAlgo, err := algorithm.ParseAlgorithm(cfg.RateLimitCfg.Algorithm)
 	if err != nil {
 		return nil, fmt.Errorf("invalid initial algorithm specified in config: %w", err)
@@ -86,7 +96,7 @@ func NewSentinelEngine(rdb *storage.RedisStorage, log *logger.Logger, cfg *confi
 
 	engine := &SentinelEngine{
 		rdb:               rdb,
-		log:               log,
+		log:               nil,
 		rateLimitConfig:   &cfg.RateLimitCfg,
 		engineMetrics:     registerSentinelEngineMetrics(reg),
 		middlewareMetrics: registerMiddlewareMetrics(reg),
@@ -99,18 +109,27 @@ func NewSentinelEngine(rdb *storage.RedisStorage, log *logger.Logger, cfg *confi
 	}
 
 	failOpenStr, err := engine.rdb.Get(context.Background(), failOpenConfigKey)
-	if err != nil {
+	if err != nil && err != redis.Nil {
 		return nil, fmt.Errorf("failed to get fail open config: %w", err)
 	}
 
 	// override fail open config if it exists on redis
 	failOpen, err := strconv.ParseBool(failOpenStr)
-	if err == redis.Nil {
+	if err == nil {
 		engine.rateLimitConfig.FailOpen = failOpen
 	}
-
 	// if not, stick to the env variable setting
 
+	return engine, nil
+}
+
+func NewSentinelEngine(rdb RedisBackend, log *logger.Logger, cfg *config.SentinelAppConfig, reg prometheus.Registerer) (*SentinelEngine, error) {
+	engine, err := newSentinelEngineWithBackend(rdb, cfg, reg)
+	if err != nil {
+		return nil, err
+	}
+
+	engine.log = log
 	return engine, nil
 }
 
@@ -199,12 +218,19 @@ func (se *SentinelEngine) checkAllow(ctx context.Context, key string, algo algor
 }
 
 func (se *SentinelEngine) GetFailOpen(ctx context.Context) (bool, error) {
-	result, err := se.rdb.Get(ctx, failOpenConfigKey)
+	failOpenStr, err := se.rdb.Get(ctx, failOpenConfigKey)
+	if err != nil && !errors.Is(err, redis.Nil) {
+		return false, fmt.Errorf("failed to get fail open config: %w", err)
+	}
 	if err != nil {
 		return false, fmt.Errorf("failed to get fail open config: %w", err)
 	}
 
-	return strconv.ParseBool(result)
+	if failOpen, err := strconv.ParseBool(failOpenStr); err != nil {
+		return false, fmt.Errorf("failed to parse fail open config: %w", err)
+	} else {
+		return failOpen, nil
+	}
 }
 
 func (se *SentinelEngine) SetFailOpen(ctx context.Context, failOpen bool) (bool, error) {
