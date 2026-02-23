@@ -64,7 +64,7 @@ func (h *GRPCHandler) UpdateAlgorithm(ctx context.Context, req *pb.UpdateAlgorit
 
 	err = h.engine.UpdateAlgorithm(ctx, algo)
 	return &pb.UpdateAlgorithmResponse{
-		Success: err != nil,
+		Success: err == nil,
 	}, err
 }
 
