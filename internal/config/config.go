@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -170,8 +171,8 @@ func loadBootstrapConfig() (BootstrapConfig, error) {
 		return BootstrapConfig{}, ErrMissingLogPath
 	}
 
-	// check if logPath is a valid path
-	if _, err := os.Stat(logPath); os.IsNotExist(err) {
+	dir := filepath.Dir(logPath)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		return BootstrapConfig{}, ErrInvalidLogPath
 	}
 

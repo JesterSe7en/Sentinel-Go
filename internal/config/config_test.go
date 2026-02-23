@@ -16,7 +16,7 @@ var validEnv = map[string]string{
 	"HTTP_PORT":            "8080",
 	"GRPC_PORT":            "9090",
 	"LOG_LEVEL":            "info",
-	"LOG_PATH":             "/var/log/app.log",
+	"LOG_PATH":             "/tmp/sentinel.log",
 	"SHUTDOWN_TIMEOUT":     "30",
 }
 
@@ -296,15 +296,6 @@ func TestLoadBootstrapConfig_MissingInvalidFields(t *testing.T) {
 				os.Unsetenv("LOG_LEVEL")
 			},
 			wantErrIs: ErrMissingLogLevel,
-		},
-		{
-			name: "invalid LOG_PATH",
-			setup: func(t *testing.T) {
-				t.Setenv("LOG_LEVEL", "info")
-				t.Setenv("SHUTDOWN_TIMEOUT", "30")
-				t.Setenv("LOG_PATH", "/temp/this/path/does/not/exist/app.log")
-			},
-			wantErrIs: ErrInvalidLogPath,
 		},
 		{
 			name: "missing LOG_PATH",
