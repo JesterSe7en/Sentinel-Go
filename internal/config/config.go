@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -8,6 +9,19 @@ import (
 	"time"
 
 	"github.com/JesterSe7en/Sentinel-Go/internal/algorithm"
+)
+
+var (
+	ErrMissingRedisMasterName = errors.New("config: REDIS_MASTERNAME is required")
+	ErrMissingRedisSentinels  = errors.New("config: REDIS_SENTINELS is required")
+	ErrInvalidRedisDB         = errors.New("config: REDIS_DB must be a valid integer")
+	ErrMissingRateLimitAlgo   = errors.New("config: RATE_LIMIT_ALGORITHM is required")
+	ErrInvalidShutdownTimeout = errors.New("config: SHUTDOWN_TIMEOUT must be a valid integer")
+	ErrMissingHTTPPort        = errors.New("config: HTTP_PORT is required")
+	ErrMissingGRPCPort        = errors.New("config: GRPC_PORT is required")
+	ErrMissingLogLevel        = errors.New("config: LOG_LEVEL is required")
+	ErrMissingLogPath         = errors.New("config: LOG_PATH is required")
+	ErrInvalidLogPath         = errors.New("config: LOG_PATH must be a valid path")
 )
 
 type SentinelAppConfig struct {
@@ -20,7 +34,6 @@ type SentinelAppConfig struct {
 type BootstrapConfig struct {
 	LogLevel        string
 	LogPath         string
-	LogFormat       string // TODO: maybe not needed?
 	ShutdownTimeout time.Duration
 }
 
@@ -63,7 +76,7 @@ type SlidingWindowCounterConfig struct {
 func (c *RateLimitConfig) GetConfigForAlgorithm(algo string) (any, error) {
 	parsed, err := algorithm.ParseAlgorithm(algo)
 	if err != nil {
-		return nil, fmt.Errorf("invalid algorithm: %v", err)
+		return nil, fmt.Errorf("invalid algorithm: %w", err)
 	}
 	switch parsed {
 	case algorithm.AlgorithmTokenBucket:
@@ -104,25 +117,89 @@ func Load() (*SentinelAppConfig, error) {
 		return nil, fmt.Errorf("failed to load bootstrap config: %w", err)
 	}
 
-	cfg := &SentinelAppConfig{
-		BootstrapCfg: bootstrapConfig,
-		RedisCfg:     redisConfig,
-		RateLimitCfg: defaultRateLimitConfig(),
-		ServerCfg:    loadSeverConfig(),
+	rateLimitConfig, err := loadRateLimitConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load rate limit config: %w", err)
 	}
 
-	return cfg, nil
+	serverConfig, err := loadServerConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load server config: %w", err)
+	}
+
+	return &SentinelAppConfig{
+		BootstrapCfg: bootstrapConfig,
+		RedisCfg:     redisConfig,
+		RateLimitCfg: rateLimitConfig,
+		ServerCfg:    serverConfig,
+	}, nil
 }
 
-func defaultRateLimitConfig() RateLimitConfig {
+func loadRedisConfig() (RedisConfig, error) {
+	name := os.Getenv("REDIS_MASTERNAME")
+	if name == "" {
+		return RedisConfig{}, ErrMissingRedisMasterName
+	}
+
+	rawSentinels := os.Getenv("REDIS_SENTINELS")
+	if rawSentinels == "" {
+		return RedisConfig{}, ErrMissingRedisSentinels
+	}
+
+	redisDB, err := strconv.Atoi(os.Getenv("REDIS_DB"))
+	if err != nil {
+		return RedisConfig{}, fmt.Errorf("%w: %w", ErrInvalidRedisDB, err)
+	}
+
+	return RedisConfig{
+		MasterName:    name,
+		SentinelAddrs: strings.Split(rawSentinels, ","),
+		DB:            redisDB,
+		Password:      os.Getenv("REDIS_PASSWORD"),
+	}, nil
+}
+
+func loadBootstrapConfig() (BootstrapConfig, error) {
+	logLevel := os.Getenv("LOG_LEVEL")
+	if logLevel == "" {
+		return BootstrapConfig{}, ErrMissingLogLevel
+	}
+
+	logPath := os.Getenv("LOG_PATH")
+	if logPath == "" {
+		return BootstrapConfig{}, ErrMissingLogPath
+	}
+
+	// check if logPath is a valid path
+	if _, err := os.Stat(logPath); os.IsNotExist(err) {
+		return BootstrapConfig{}, ErrInvalidLogPath
+	}
+
+	timeout, err := strconv.Atoi(os.Getenv("SHUTDOWN_TIMEOUT"))
+	if err != nil {
+		return BootstrapConfig{}, fmt.Errorf("%w: %w", ErrInvalidShutdownTimeout, err)
+	}
+
+	return BootstrapConfig{
+		LogLevel:        logLevel,
+		LogPath:         logPath,
+		ShutdownTimeout: time.Duration(timeout) * time.Second,
+	}, nil
+}
+
+func loadRateLimitConfig() (RateLimitConfig, error) {
+	algo := os.Getenv("RATE_LIMIT_ALGORITHM")
+	if algo == "" {
+		return RateLimitConfig{}, ErrMissingRateLimitAlgo
+	}
+
 	return RateLimitConfig{
-		Algorithm: os.Getenv("RATE_LIMIT_ALGORITHM"),
-		FailOpen:  os.Getenv("RATE_LIMIT_FAIL_OPEN") == "true", // true = fail open (allow request), false = fail closed (block all requests)
+		Algorithm: algo,
+		FailOpen:  os.Getenv("RATE_LIMIT_FAIL_OPEN") == "true",
 		TokenBucket: &TokenBucketConfig{
 			RefillRate: 1,
 			Capacity:   5,
 		},
-
 		LeakyBucket: &LeakyBucketConfig{
 			Capacity: 100,
 			LeakRate: 10.0,
@@ -140,48 +217,22 @@ func defaultRateLimitConfig() RateLimitConfig {
 			SlidingWindowSize: 60,
 			BucketSize:        10,
 		},
-	}
-}
-
-func loadBootstrapConfig() (BootstrapConfig, error) {
-	timeout, err := strconv.Atoi(os.Getenv("SHUTDOWN_TIMEOUT"))
-	if err != nil {
-		return BootstrapConfig{}, fmt.Errorf("invalid shutdown timeout: %w", err)
-	}
-
-	return BootstrapConfig{
-		LogLevel:        os.Getenv("LOG_LEVEL"),
-		LogPath:         os.Getenv("LOG_PATH"),
-		LogFormat:       "hehe",
-		ShutdownTimeout: time.Duration(timeout) * time.Second,
 	}, nil
 }
 
-func loadRedisConfig() (RedisConfig, error) {
-	name := os.Getenv("REDIS_MASTERNAME")
-	redisDB, err := strconv.Atoi(os.Getenv("REDIS_DB"))
-	if err != nil {
-		return RedisConfig{}, fmt.Errorf("invalid redis db: %w", err)
-	}
-	redisPassword := os.Getenv("REDIS_PASSWORD")
-
-	rawSentinels := os.Getenv("REDIS_SENTINELS")
-	sentinelSlice := strings.Split(rawSentinels, ",")
-	if rawSentinels == "" {
-		return RedisConfig{}, fmt.Errorf("REDIS_SENTINELS environment variable is not set")
+func loadServerConfig() (ServerConfig, error) {
+	httpPort := os.Getenv("HTTP_PORT")
+	if httpPort == "" {
+		return ServerConfig{}, ErrMissingHTTPPort
 	}
 
-	return RedisConfig{
-		MasterName:    name,
-		SentinelAddrs: sentinelSlice,
-		DB:            redisDB,
-		Password:      redisPassword,
-	}, nil
-}
+	grpcPort := os.Getenv("GRPC_PORT")
+	if grpcPort == "" {
+		return ServerConfig{}, ErrMissingGRPCPort
+	}
 
-func loadSeverConfig() ServerConfig {
 	return ServerConfig{
-		HTTPPort: os.Getenv("HTTP_PORT"),
-		GRPCPort: os.Getenv("GRPC_PORT"),
-	}
+		HTTPPort: httpPort,
+		GRPCPort: grpcPort,
+	}, nil
 }

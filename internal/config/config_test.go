@@ -1,309 +1,527 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"testing"
 	"time"
 )
 
-func setEnv(t *testing.T, key, value string) {
+var validEnv = map[string]string{
+	"REDIS_MASTERNAME":     "mymaster",
+	"REDIS_SENTINELS":      "localhost:26379",
+	"REDIS_DB":             "0",
+	"REDIS_PASSWORD":       "supersecret",
+	"RATE_LIMIT_ALGORITHM": "TokenBucket",
+	"HTTP_PORT":            "8080",
+	"GRPC_PORT":            "9090",
+	"LOG_LEVEL":            "info",
+	"LOG_PATH":             "/var/log/app.log",
+	"SHUTDOWN_TIMEOUT":     "30",
+}
+
+func setValidEnv(t *testing.T) {
 	t.Helper()
-	if err := os.Setenv(key, value); err != nil {
-		t.Fatalf("failed to set env: %v", err)
+	for k, v := range validEnv {
+		t.Setenv(k, v)
+	}
+}
+
+func TestLoad_ValidConfig(t *testing.T) {
+	setValidEnv(t)
+	t.Setenv("REDIS_SENTINELS", "localhost:26379,localhost:26380")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() unexpected error: %v", err)
+	}
+
+	if cfg.RedisCfg.MasterName != "mymaster" {
+		t.Errorf("MasterName = %q, want %q", cfg.RedisCfg.MasterName, "mymaster")
+	}
+	if len(cfg.RedisCfg.SentinelAddrs) != 2 {
+		t.Errorf("SentinelAddrs len = %d, want 2", len(cfg.RedisCfg.SentinelAddrs))
+	}
+	if cfg.RedisCfg.SentinelAddrs[0] != "localhost:26379" {
+		t.Errorf("SentinelAddrs[0] = %q, want %q", cfg.RedisCfg.SentinelAddrs[0], "localhost:26379")
+	}
+	if cfg.RedisCfg.DB != 0 {
+		t.Errorf("DB = %d, want 0", cfg.RedisCfg.DB)
+	}
+	if cfg.ServerCfg.HTTPPort != "8080" {
+		t.Errorf("HTTPPort = %q, want %q", cfg.ServerCfg.HTTPPort, "8080")
+	}
+	if cfg.ServerCfg.GRPCPort != "9090" {
+		t.Errorf("GRPCPort = %q, want %q", cfg.ServerCfg.GRPCPort, "9090")
+	}
+	if cfg.BootstrapCfg.LogLevel != "info" {
+		t.Errorf("LogLevel = %q, want %q", cfg.BootstrapCfg.LogLevel, "info")
+	}
+	if cfg.BootstrapCfg.ShutdownTimeout != 30*time.Second {
+		t.Errorf("ShutdownTimeout = %v, want 30s", cfg.BootstrapCfg.ShutdownTimeout)
+	}
+	if cfg.RateLimitCfg.Algorithm != "TokenBucket" {
+		t.Errorf("Algorithm = %q, want %q", cfg.RateLimitCfg.Algorithm, "TokenBucket")
 	}
 }
 
 func TestLoad_MissingEnvVars(t *testing.T) {
-	requiredVars := []string{
-		"REDIS_MASTERNAME",
-		"REDIS_SENTINELS",
-		"REDIS_DB",
-		"REDIS_PASSWORD",
-		"RATE_LIMIT_ALGORITHM",
-		"HTTP_PORT",
-		"GRPC_PORT",
-		"LOG_LEVEL",
-		"LOG_PATH",
-		"SHUTDOWN_TIMEOUT",
-	}
-
-	// Save and unset all required vars
-	origEnv := make(map[string]string)
-	for _, v := range requiredVars {
-		origEnv[v] = os.Getenv(v)
-		os.Unsetenv(v)
-	}
-	defer func() {
-		for k, v := range origEnv {
-			if v == "" {
-				os.Unsetenv(k)
-			} else {
-				os.Setenv(k, v)
-			}
-		}
-	}()
-
-	_, err := Load()
-	if err == nil {
-		t.Error("expected error when missing env vars, got nil")
-	}
-}
-
-func TestLoad_InvalidRedisDB(t *testing.T) {
-	orig := os.Getenv("REDIS_DB")
-	defer os.Setenv("REDIS_DB", orig)
-
-	setEnv(t, "REDIS_DB", "not_a_number")
-
-	_, err := Load()
-	if err == nil {
-		t.Error("expected error for invalid REDIS_DB, got nil")
-	}
-}
-
-func TestLoad_InvalidShutdownTimeout(t *testing.T) {
-	orig := os.Getenv("SHUTDOWN_TIMEOUT")
-	defer os.Setenv("SHUTDOWN_TIMEOUT", orig)
-
-	setEnv(t, "SHUTDOWN_TIMEOUT", "not_a_number")
-
-	_, err := Load()
-	if err == nil {
-		t.Error("expected error for invalid SHUTDOWN_TIMEOUT, got nil")
-	}
-}
-
-func TestLoad_MissingSentinels(t *testing.T) {
-	orig := os.Getenv("REDIS_SENTINELS")
-	defer os.Setenv("REDIS_SENTINELS", orig)
-
-	os.Unsetenv("REDIS_SENTINELS")
-
-	_, err := Load()
-	if err == nil {
-		t.Error("expected error for missing REDIS_SENTINELS, got nil")
-	}
-}
-
-func TestDefaultRateLimitConfig(t *testing.T) {
-	cfg := defaultRateLimitConfig()
-
-	if cfg.TokenBucket == nil {
-		t.Error("TokenBucket config should not be nil")
-	}
-	if cfg.LeakyBucket == nil {
-		t.Error("LeakyBucket config should not be nil")
-	}
-	if cfg.FixedWindow == nil {
-		t.Error("FixedWindow config should not be nil")
-	}
-	if cfg.SlidingWindowLog == nil {
-		t.Error("SlidingWindowLog config should not be nil")
-	}
-	if cfg.SlidingWindowCounter == nil {
-		t.Error("SlidingWindowCounter config should not be nil")
-	}
-
-	if cfg.TokenBucket.Capacity != 5 {
-		t.Errorf("TokenBucket.Capacity = %d, want 5", cfg.TokenBucket.Capacity)
-	}
-	if cfg.TokenBucket.RefillRate != 1 {
-		t.Errorf("TokenBucket.RefillRate = %v, want 1", cfg.TokenBucket.RefillRate)
-	}
-	if cfg.LeakyBucket.Capacity != 100 {
-		t.Errorf("LeakyBucket.Capacity = %d, want 100", cfg.LeakyBucket.Capacity)
-	}
-	if cfg.LeakyBucket.LeakRate != 10.0 {
-		t.Errorf("LeakyBucket.LeakRate = %v, want 10.0", cfg.LeakyBucket.LeakRate)
-	}
-	if cfg.FixedWindow.Limit != 100 {
-		t.Errorf("FixedWindow.Limit = %d, want 100", cfg.FixedWindow.Limit)
-	}
-	if cfg.FixedWindow.Window != time.Minute {
-		t.Errorf("FixedWindow.Window = %v, want 1m", cfg.FixedWindow.Window)
-	}
-}
-
-func TestRateLimitConfig_GetConfigForAlgorithm(t *testing.T) {
-	cfg := defaultRateLimitConfig()
-
 	tests := []struct {
-		name        string
-		algo        string
-		expectError bool
-		checkFn     func(any) bool
+		name      string
+		unsetVar  string
+		wantErrIs error
 	}{
-		{
-			name:        "TokenBucket",
-			algo:        "TokenBucket",
-			expectError: false,
-			checkFn: func(v any) bool {
-				c, ok := v.(*TokenBucketConfig)
-				return ok && c.Capacity == 5 && c.RefillRate == 1
-			},
-		},
-		{
-			name:        "LeakyBucket",
-			algo:        "LeakyBucket",
-			expectError: false,
-			checkFn: func(v any) bool {
-				c, ok := v.(*LeakyBucketConfig)
-				return ok && c.Capacity == 100 && c.LeakRate == 10.0
-			},
-		},
-		{
-			name:        "FixedWindow",
-			algo:        "FixedWindow",
-			expectError: false,
-			checkFn: func(v any) bool {
-				c, ok := v.(*FixedWindowConfig)
-				return ok && c.Limit == 100 && c.Window == time.Minute
-			},
-		},
-		{
-			name:        "SlidingWindowLog",
-			algo:        "SlidingWindowLog",
-			expectError: false,
-			checkFn: func(v any) bool {
-				c, ok := v.(*SlidingWindowLogConfig)
-				return ok && c.Limit == 100 && c.SlidingWindowSize == 60
-			},
-		},
-		{
-			name:        "SlidingWindowCounter",
-			algo:        "SlidingWindowCounter",
-			expectError: false,
-			checkFn: func(v any) bool {
-				c, ok := v.(*SlidingWindowCounterConfig)
-				return ok && c.Limit == 100 && c.SlidingWindowSize == 60 && c.BucketSize == 10
-			},
-		},
-		{
-			name:        "InvalidAlgorithm",
-			algo:        "InvalidAlgo",
-			expectError: true,
-			checkFn:     nil,
-		},
-		{
-			name:        "EmptyString",
-			algo:        "",
-			expectError: true,
-			checkFn:     nil,
-		},
+		{"missing REDIS_MASTERNAME", "REDIS_MASTERNAME", ErrMissingRedisMasterName},
+		{"missing REDIS_SENTINELS", "REDIS_SENTINELS", ErrMissingRedisSentinels},
+		{"missing REDIS_DB", "REDIS_DB", ErrInvalidRedisDB},
+		{"missing RATE_LIMIT_ALGORITHM", "RATE_LIMIT_ALGORITHM", ErrMissingRateLimitAlgo},
+		{"missing HTTP_PORT", "HTTP_PORT", ErrMissingHTTPPort},
+		{"missing GRPC_PORT", "GRPC_PORT", ErrMissingGRPCPort},
+		{"missing LOG_LEVEL", "LOG_LEVEL", ErrMissingLogLevel},
+		{"missing LOG_PATH", "LOG_PATH", ErrMissingLogPath},
+		{"missing SHUTDOWN_TIMEOUT", "SHUTDOWN_TIMEOUT", ErrInvalidShutdownTimeout},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := cfg.GetConfigForAlgorithm(tt.algo)
+			setValidEnv(t)
+			os.Unsetenv(tt.unsetVar)
 
-			if tt.expectError {
-				if err == nil {
-					t.Errorf("expected error for algo %q, got nil", tt.algo)
-				}
-				return
+			_, err := Load()
+			if err == nil {
+				t.Fatalf("Load() expected error when %q is unset, got nil", tt.unsetVar)
 			}
+			if !errors.Is(err, tt.wantErrIs) {
+				t.Errorf("Load() error = %v, want errors.Is(%v)", err, tt.wantErrIs)
+			}
+		})
+	}
+}
 
+func TestLoad_InvalidFormats(t *testing.T) {
+	tests := []struct {
+		name      string
+		envKey    string
+		envVal    string
+		wantErrIs error
+	}{
+		{"REDIS_DB not a number", "REDIS_DB", "not_a_number", ErrInvalidRedisDB},
+		{"REDIS_DB is float", "REDIS_DB", "1.5", ErrInvalidRedisDB},
+		{"SHUTDOWN_TIMEOUT not a number", "SHUTDOWN_TIMEOUT", "not_a_number", ErrInvalidShutdownTimeout},
+		{"SHUTDOWN_TIMEOUT is float", "SHUTDOWN_TIMEOUT", "30.5", ErrInvalidShutdownTimeout},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setValidEnv(t)
+			t.Setenv(tt.envKey, tt.envVal)
+
+			_, err := Load()
+			if err == nil {
+				t.Fatalf("Load() expected error for %s=%q, got nil", tt.envKey, tt.envVal)
+			}
+			if !errors.Is(err, tt.wantErrIs) {
+				t.Errorf("Load() error = %v, want errors.Is(%v)", err, tt.wantErrIs)
+			}
+		})
+	}
+}
+
+func TestLoad_OptionalRedisPassword(t *testing.T) {
+	setValidEnv(t)
+	os.Unsetenv("REDIS_PASSWORD")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() should succeed without REDIS_PASSWORD, got: %v", err)
+	}
+	if cfg.RedisCfg.Password != "" {
+		t.Errorf("Password = %q, want empty string", cfg.RedisCfg.Password)
+	}
+}
+
+func TestLoad_FailOpen(t *testing.T) {
+	tests := []struct {
+		name     string
+		envVal   string
+		wantBool bool
+	}{
+		{"true enables fail open", "true", true},
+		{"false disables fail open", "false", false},
+		{"empty defaults to false", "", false},
+		{"arbitrary string defaults to false", "yes", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setValidEnv(t)
+			t.Setenv("RATE_LIMIT_FAIL_OPEN", tt.envVal)
+
+			cfg, err := Load()
 			if err != nil {
-				t.Errorf("unexpected error for algo %q: %v", tt.algo, err)
-				return
+				t.Fatalf("Load() unexpected error: %v", err)
 			}
-
-			if !tt.checkFn(result) {
-				t.Errorf("unexpected result for algo %q: %+v", tt.algo, result)
+			if cfg.RateLimitCfg.FailOpen != tt.wantBool {
+				t.Errorf("FailOpen = %v, want %v", cfg.RateLimitCfg.FailOpen, tt.wantBool)
 			}
 		})
 	}
 }
 
 func TestLoadRedisConfig_Valid(t *testing.T) {
-	orig := make(map[string]string)
-	vars := []string{"REDIS_MASTERNAME", "REDIS_SENTINELS", "REDIS_DB", "REDIS_PASSWORD"}
-	for _, v := range vars {
-		orig[v] = os.Getenv(v)
-		defer os.Setenv(v, orig[v])
-	}
-
-	setEnv(t, "REDIS_MASTERNAME", "redis-master")
-	setEnv(t, "REDIS_SENTINELS", "localhost:26379,localhost:26380")
-	setEnv(t, "REDIS_DB", "0")
-	setEnv(t, "REDIS_PASSWORD", "password123")
+	t.Setenv("REDIS_MASTERNAME", "redis-master")
+	t.Setenv("REDIS_SENTINELS", "localhost:26379,localhost:26380")
+	t.Setenv("REDIS_DB", "0")
+	t.Setenv("REDIS_PASSWORD", "password123")
 
 	cfg, err := loadRedisConfig()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
 	if cfg.MasterName != "redis-master" {
-		t.Errorf("MasterName = %q, want 'redis-master'", cfg.MasterName)
+		t.Errorf("MasterName = %q, want %q", cfg.MasterName, "redis-master")
 	}
 	if len(cfg.SentinelAddrs) != 2 {
-		t.Errorf("SentinelAddrs length = %d, want 2", len(cfg.SentinelAddrs))
+		t.Errorf("SentinelAddrs len = %d, want 2", len(cfg.SentinelAddrs))
+	}
+	if cfg.SentinelAddrs[0] != "localhost:26379" {
+		t.Errorf("SentinelAddrs[0] = %q, want %q", cfg.SentinelAddrs[0], "localhost:26379")
 	}
 	if cfg.DB != 0 {
 		t.Errorf("DB = %d, want 0", cfg.DB)
 	}
 	if cfg.Password != "password123" {
-		t.Errorf("Password = %q, want 'password123'", cfg.Password)
+		t.Errorf("Password = %q, want %q", cfg.Password, "password123")
 	}
 }
 
-func TestLoadRedisConfig_MissingSentinels(t *testing.T) {
-	orig := os.Getenv("REDIS_SENTINELS")
-	defer os.Setenv("REDIS_SENTINELS", orig)
+func TestLoadRedisConfig_SingleSentinel(t *testing.T) {
+	t.Setenv("REDIS_MASTERNAME", "mymaster")
+	t.Setenv("REDIS_SENTINELS", "localhost:26379")
+	t.Setenv("REDIS_DB", "0")
 
-	os.Unsetenv("REDIS_SENTINELS")
-
-	_, err := loadRedisConfig()
-	if err == nil {
-		t.Error("expected error for missing REDIS_SENTINELS, got nil")
+	cfg, err := loadRedisConfig()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cfg.SentinelAddrs) != 1 {
+		t.Errorf("SentinelAddrs len = %d, want 1", len(cfg.SentinelAddrs))
+	}
+	if cfg.SentinelAddrs[0] != "localhost:26379" {
+		t.Errorf("SentinelAddrs[0] = %q, want %q", cfg.SentinelAddrs[0], "localhost:26379")
 	}
 }
 
-func TestLoadServerConfig(t *testing.T) {
-	origHTTP := os.Getenv("HTTP_PORT")
-	origGRPC := os.Getenv("GRPC_PORT")
-	defer func() {
-		os.Setenv("HTTP_PORT", origHTTP)
-		os.Setenv("GRPC_PORT", origGRPC)
-	}()
-
-	setEnv(t, "HTTP_PORT", "9090")
-	setEnv(t, "GRPC_PORT", "50052")
-
-	cfg := loadSeverConfig()
-
-	if cfg.HTTPPort != "9090" {
-		t.Errorf("HTTPPort = %q, want '9090'", cfg.HTTPPort)
+func TestLoadRedisConfig_MissingFields(t *testing.T) {
+	tests := []struct {
+		name      string
+		setup     func(t *testing.T)
+		wantErrIs error
+	}{
+		{
+			name: "missing master name",
+			setup: func(t *testing.T) {
+				t.Setenv("REDIS_SENTINELS", "localhost:26379")
+				t.Setenv("REDIS_DB", "0")
+				os.Unsetenv("REDIS_MASTERNAME")
+			},
+			wantErrIs: ErrMissingRedisMasterName,
+		},
+		{
+			name: "missing sentinels",
+			setup: func(t *testing.T) {
+				t.Setenv("REDIS_MASTERNAME", "mymaster")
+				t.Setenv("REDIS_DB", "0")
+				os.Unsetenv("REDIS_SENTINELS")
+			},
+			wantErrIs: ErrMissingRedisSentinels,
+		},
+		{
+			name: "invalid DB format",
+			setup: func(t *testing.T) {
+				t.Setenv("REDIS_MASTERNAME", "mymaster")
+				t.Setenv("REDIS_SENTINELS", "localhost:26379")
+				t.Setenv("REDIS_DB", "not_a_number")
+			},
+			wantErrIs: ErrInvalidRedisDB,
+		},
 	}
-	if cfg.GRPCPort != "50052" {
-		t.Errorf("GRPCPort = %q, want '50052'", cfg.GRPCPort)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setup(t)
+
+			_, err := loadRedisConfig()
+			if err == nil {
+				t.Fatalf("expected error, got nil")
+			}
+			if !errors.Is(err, tt.wantErrIs) {
+				t.Errorf("error = %v, want errors.Is(%v)", err, tt.wantErrIs)
+			}
+		})
 	}
 }
 
-func TestLoadBootstrapConfig(t *testing.T) {
-	orig := make(map[string]string)
-	vars := []string{"SHUTDOWN_TIMEOUT", "LOG_LEVEL", "LOG_PATH"}
-	for _, v := range vars {
-		orig[v] = os.Getenv(v)
-		defer os.Setenv(v, orig[v])
-	}
-
-	setEnv(t, "SHUTDOWN_TIMEOUT", "30")
-	setEnv(t, "LOG_LEVEL", "debug")
-	setEnv(t, "LOG_PATH", "/var/log/app.log")
+func TestLoadBootstrapConfig_Valid(t *testing.T) {
+	t.Setenv("SHUTDOWN_TIMEOUT", "30")
+	t.Setenv("LOG_LEVEL", "debug")
+	t.Setenv("LOG_PATH", "/var/log/app.log")
 
 	cfg, err := loadBootstrapConfig()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
 	if cfg.ShutdownTimeout != 30*time.Second {
 		t.Errorf("ShutdownTimeout = %v, want 30s", cfg.ShutdownTimeout)
 	}
 	if cfg.LogLevel != "debug" {
-		t.Errorf("LogLevel = %q, want 'debug'", cfg.LogLevel)
+		t.Errorf("LogLevel = %q, want %q", cfg.LogLevel, "debug")
 	}
 	if cfg.LogPath != "/var/log/app.log" {
-		t.Errorf("LogPath = %q, want '/var/log/app.log'", cfg.LogPath)
+		t.Errorf("LogPath = %q, want %q", cfg.LogPath, "/var/log/app.log")
+	}
+}
+
+func TestLoadBootstrapConfig_MissingInvalidFields(t *testing.T) {
+	tests := []struct {
+		name      string
+		setup     func(t *testing.T)
+		wantErrIs error
+	}{
+		{
+			name: "missing LOG_LEVEL",
+			setup: func(t *testing.T) {
+				t.Setenv("LOG_PATH", "/var/log/app.log")
+				t.Setenv("SHUTDOWN_TIMEOUT", "30")
+				os.Unsetenv("LOG_LEVEL")
+			},
+			wantErrIs: ErrMissingLogLevel,
+		},
+		{
+			name: "invalid LOG_PATH",
+			setup: func(t *testing.T) {
+				t.Setenv("LOG_LEVEL", "info")
+				t.Setenv("SHUTDOWN_TIMEOUT", "30")
+				t.Setenv("LOG_PATH", "/temp/this/path/does/not/exist/app.log")
+			},
+			wantErrIs: ErrInvalidLogPath,
+		},
+		{
+			name: "missing LOG_PATH",
+			setup: func(t *testing.T) {
+				t.Setenv("LOG_LEVEL", "info")
+				t.Setenv("SHUTDOWN_TIMEOUT", "30")
+				os.Unsetenv("LOG_PATH")
+			},
+			wantErrIs: ErrMissingLogPath,
+		},
+		{
+			name: "invalid SHUTDOWN_TIMEOUT",
+			setup: func(t *testing.T) {
+				t.Setenv("LOG_LEVEL", "info")
+				t.Setenv("LOG_PATH", "/var/log/app.log")
+				t.Setenv("SHUTDOWN_TIMEOUT", "bad")
+			},
+			wantErrIs: ErrInvalidShutdownTimeout,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setup(t)
+
+			_, err := loadBootstrapConfig()
+			if err == nil {
+				t.Fatalf("expected error, got nil")
+			}
+			if !errors.Is(err, tt.wantErrIs) {
+				t.Errorf("error = %v, want errors.Is(%v)", err, tt.wantErrIs)
+			}
+		})
+	}
+}
+
+func TestLoadServerConfig_Valid(t *testing.T) {
+	t.Setenv("HTTP_PORT", "9090")
+	t.Setenv("GRPC_PORT", "50052")
+
+	cfg, err := loadServerConfig()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.HTTPPort != "9090" {
+		t.Errorf("HTTPPort = %q, want %q", cfg.HTTPPort, "9090")
+	}
+	if cfg.GRPCPort != "50052" {
+		t.Errorf("GRPCPort = %q, want %q", cfg.GRPCPort, "50052")
+	}
+}
+
+func TestLoadServerConfig_MissingFields(t *testing.T) {
+	tests := []struct {
+		name      string
+		setup     func(t *testing.T)
+		wantErrIs error
+	}{
+		{
+			name: "missing HTTP_PORT",
+			setup: func(t *testing.T) {
+				t.Setenv("GRPC_PORT", "9090")
+				os.Unsetenv("HTTP_PORT")
+			},
+			wantErrIs: ErrMissingHTTPPort,
+		},
+		{
+			name: "missing GRPC_PORT",
+			setup: func(t *testing.T) {
+				t.Setenv("HTTP_PORT", "8080")
+				os.Unsetenv("GRPC_PORT")
+			},
+			wantErrIs: ErrMissingGRPCPort,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setup(t)
+
+			_, err := loadServerConfig()
+			if err == nil {
+				t.Fatalf("expected error, got nil")
+			}
+			if !errors.Is(err, tt.wantErrIs) {
+				t.Errorf("error = %v, want errors.Is(%v)", err, tt.wantErrIs)
+			}
+		})
+	}
+}
+
+func TestRateLimitConfig_GetConfigForAlgorithm(t *testing.T) {
+	setValidEnv(t)
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() unexpected error: %v", err)
+	}
+
+	tests := []struct {
+		name    string
+		algo    string
+		wantErr bool
+		checkFn func(t *testing.T, v any)
+	}{
+		{
+			name: "TokenBucket returns correct config",
+			algo: "TokenBucket",
+			checkFn: func(t *testing.T, v any) {
+				t.Helper()
+				c, ok := v.(*TokenBucketConfig)
+				if !ok {
+					t.Fatalf("expected *TokenBucketConfig, got %T", v)
+				}
+				if c.Capacity != 5 {
+					t.Errorf("Capacity = %d, want 5", c.Capacity)
+				}
+				if c.RefillRate != 1 {
+					t.Errorf("RefillRate = %v, want 1", c.RefillRate)
+				}
+			},
+		},
+		{
+			name: "LeakyBucket returns correct config",
+			algo: "LeakyBucket",
+			checkFn: func(t *testing.T, v any) {
+				t.Helper()
+				c, ok := v.(*LeakyBucketConfig)
+				if !ok {
+					t.Fatalf("expected *LeakyBucketConfig, got %T", v)
+				}
+				if c.Capacity != 100 {
+					t.Errorf("Capacity = %d, want 100", c.Capacity)
+				}
+				if c.LeakRate != 10.0 {
+					t.Errorf("LeakRate = %v, want 10.0", c.LeakRate)
+				}
+			},
+		},
+		{
+			name: "FixedWindow returns correct config",
+			algo: "FixedWindow",
+			checkFn: func(t *testing.T, v any) {
+				t.Helper()
+				c, ok := v.(*FixedWindowConfig)
+				if !ok {
+					t.Fatalf("expected *FixedWindowConfig, got %T", v)
+				}
+				if c.Limit != 100 {
+					t.Errorf("Limit = %d, want 100", c.Limit)
+				}
+				if c.Window != time.Minute {
+					t.Errorf("Window = %v, want 1m", c.Window)
+				}
+			},
+		},
+		{
+			name: "SlidingWindowLog returns correct config",
+			algo: "SlidingWindowLog",
+			checkFn: func(t *testing.T, v any) {
+				t.Helper()
+				c, ok := v.(*SlidingWindowLogConfig)
+				if !ok {
+					t.Fatalf("expected *SlidingWindowLogConfig, got %T", v)
+				}
+				if c.Limit != 100 {
+					t.Errorf("Limit = %d, want 100", c.Limit)
+				}
+				if c.SlidingWindowSize != 60 {
+					t.Errorf("SlidingWindowSize = %d, want 60", c.SlidingWindowSize)
+				}
+			},
+		},
+		{
+			name: "SlidingWindowCounter returns correct config",
+			algo: "SlidingWindowCounter",
+			checkFn: func(t *testing.T, v any) {
+				t.Helper()
+				c, ok := v.(*SlidingWindowCounterConfig)
+				if !ok {
+					t.Fatalf("expected *SlidingWindowCounterConfig, got %T", v)
+				}
+				if c.Limit != 100 {
+					t.Errorf("Limit = %d, want 100", c.Limit)
+				}
+				if c.BucketSize != 10 {
+					t.Errorf("BucketSize = %d, want 10", c.BucketSize)
+				}
+			},
+		},
+		{
+			name:    "invalid algorithm returns error",
+			algo:    "InvalidAlgo",
+			wantErr: true,
+		},
+		{
+			name:    "empty string returns error",
+			algo:    "",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := cfg.RateLimitCfg.GetConfigForAlgorithm(tt.algo)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error for algo %q, got nil", tt.algo)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error for algo %q: %v", tt.algo, err)
+			}
+			if tt.checkFn != nil {
+				tt.checkFn(t, result)
+			}
+		})
 	}
 }
