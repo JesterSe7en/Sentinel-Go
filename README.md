@@ -130,6 +130,8 @@ go test ./...
 - [x] Redis Sentinel support for distributed deployment
 - [x] Prometheus metrics
 - [x] Custom response headers (X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset)
+- [x] Configurable fail-open/fail-closed behavior on Redis timeout
+- [x] Health check endpoints (/health, /ready)
 
 ### In Progress
 
@@ -137,12 +139,10 @@ go test ./...
 
 ### Future Work
 
-- [ ] Configurable fail-open/fail-closed behavior on Redis timeout
 - [ ] Rate limiting by endpoint/path
 - [ ] Configurable rate limits via config file (YAML/JSON)
 - [ ] Graceful algorithm switching with warm-up period (run algorithms in parallel during transition)
 - [ ] Authentication/authorization for gRPC control plane
-- [ ] Health check endpoints (/health, /ready) for Kubernetes
 
 ## License
 
