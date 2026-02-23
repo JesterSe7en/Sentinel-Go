@@ -55,11 +55,6 @@ func (e *SentinelEngine) RateLimitMiddleware(next http.Handler) http.Handler {
 					return
 				} else {
 					e.log.Warn("request_blocked", "key", key, "path", r.URL.Path)
-
-					w.Header().Set("X-RateLimit-Limit", strconv.Itoa(results.Limit))
-					w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(results.Remaining))
-					w.Header().Set("X-RateLimit-Reset", strconv.Itoa(results.Reset))
-
 					http.Error(w, "Service Unavailable", http.StatusServiceUnavailable)
 					// TODO: probably have a seperate metric for when redis goes unavailable
 					e.middlewareMetrics.httpRequestRateLimitedTotal.WithLabelValues(r.URL.Path, r.Method, getClientType(r))
