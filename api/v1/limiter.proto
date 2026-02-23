@@ -14,6 +14,10 @@ service RateLimiterService {
   rpc UpdateAlgorithm(UpdateAlgorithmRequest) returns (UpdateAlgorithmResponse);
   // Check what current algorithm is being used
   rpc GetCurrentAlgorithm(GetCurrentAlgorithmRequest) returns (GetCurrentAlgorithmResponse);
+  // Get current failopen setting
+  rpc GetFailOpen(GetFailOpenRequest) returns (GetFailOpenResponse);
+  // Set failopen setting
+  rpc SetFailOpen(SetFailOpenRequest) returns (SetFailOpenResponse);
 }
 
 message AllowRequest {
@@ -45,4 +49,18 @@ message GetCurrentAlgorithmRequest {}
 
 message GetCurrentAlgorithmResponse {
   string algorithm = 1;
+}
+
+message GetFailOpenRequest {}
+
+message GetFailOpenResponse {
+  bool failopen = 1;
+}
+
+message SetFailOpenRequest {
+  bool failopen = 1;
+}
+
+message SetFailOpenResponse {
+  bool success = 1;
 }
