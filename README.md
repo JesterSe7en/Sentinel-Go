@@ -136,13 +136,14 @@ go test ./...
 ### In Progress
 
 - [ ] Unit tests coverage improvements
+- [ ] Authentication/authorization for gRPC control plane
 
 ### Future Work
 
 - [ ] Rate limiting by endpoint/path
 - [ ] Configurable rate limits via config file (YAML/JSON)
 - [ ] Graceful algorithm switching with warm-up period (run algorithms in parallel during transition)
-- [ ] Authentication/authorization for gRPC control plane
+- [ ] Hook up Grafana for data visualization
 
 ## License
 
