@@ -30,3 +30,8 @@ go.work.sum
 .DS_Store
 bin
 api/v1/pb
+
+
+# certs
+certs/*
+!/certs/gen-certs.sh
