@@ -138,7 +138,6 @@ go test ./...
 ### In Progress
 
 - [ ] Unit tests coverage improvements
-- [ ] Authentication/authorization for gRPC control plane
 
 ### Future Work
 
