@@ -1,0 +1,131 @@
+# include an .env along side your docker-compse.yml file with the host ip for redis
+# HOST_IP=<whatever ip address you are hosting this on>
+services:
+  redis-master:
+    image: redis:8.6-alpine
+    container_name: redis-master
+    secrets:
+      - redis_pw
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "sh",
+          "-c",
+          "redis-cli --no-auth-warning -a $(cat /run/secrets/redis_pw) ping",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    command: >
+      sh -c '
+      REDIS_PASS=$$(cat /run/secrets/redis_pw) &&
+      redis-server
+      --requirepass "$$REDIS_PASS"
+      --masterauth "$$REDIS_PASS"
+      --replica-announce-ip ${HOST_IP}
+      --replica-announce-port 6379
+      '
+    ports:
+      - "6379:6379"
+    networks:
+      - redis-net
+
+  redis-replica-1:
+    image: redis:8.6-alpine
+    container_name: redis-replica-1
+    secrets:
+      - redis_pw
+    ports:
+      - "6380:6379"
+    command: >
+      sh -c '
+      REDIS_PASS=$$(cat /run/secrets/redis_pw) &&
+      redis-server
+      --replicaof redis-master 6379
+      --requirepass "$$REDIS_PASS"
+      --masterauth "$$REDIS_PASS"
+      '
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    networks:
+      - redis-net
+
+  redis-replica-2:
+    image: redis:8.6-alpine
+    container_name: redis-replica-2
+    secrets:
+      - redis_pw
+    ports:
+      - "6381:6379"
+    command: >
+      sh -c '
+      REDIS_PASS=$$(cat /run/secrets/redis_pw) &&
+      redis-server
+      --replicaof redis-master 6379
+      --requirepass "$$REDIS_PASS"
+      --masterauth "$$REDIS_PASS"
+      '
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    networks:
+      - redis-net
+
+  sentinel-1: &sentinel
+    image: redis:8.6-alpine
+    container_name: sentinel-1
+    secrets:
+      - redis_pw
+    environment:
+      - HOST_IP=${HOST_IP}
+    command: >
+      sh -c '
+      REDIS_PASS=$$(cat /run/secrets/redis_pw) &&
+      sed -i "s/AUTH_PASS_PLACEHOLDER/$$REDIS_PASS/" /etc/redis/sentinel.conf &&
+      sed -i "s/ANNOUNCE_IP_PLACEHOLDER/$$HOST_IP/" /etc/redis/sentinel.conf &&
+      redis-server /etc/redis/sentinel.conf --sentinel
+      '
+    configs:
+      - source: sentinel_config
+        target: /etc/redis/sentinel.conf
+    ports:
+      - "26379:26379"
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    networks:
+      - redis-net
+
+  sentinel-2:
+    <<: *sentinel
+    container_name: sentinel-2
+    ports:
+      - "26380:26379"
+
+  sentinel-3:
+    <<: *sentinel
+    container_name: sentinel-3
+    ports:
+      - "26381:26379"
+
+secrets:
+  redis_pw:
+    file: ./redis_pw.txt
+
+configs:
+  sentinel_config:
+    content: |
+      port 26379
+      sentinel resolve-hostnames yes
+      sentinel monitor redis-ratelimit redis-master 6379 2
+      sentinel auth-pass redis-ratelimit AUTH_PASS_PLACEHOLDER
+      sentinel down-after-milliseconds redis-ratelimit 5000
+      sentinel failover-timeout redis-ratelimit 60000
+      sentinel parallel-syncs redis-ratelimit 1
+      sentinel announce-ip ANNOUNCE_IP_PLACEHOLDER
+      sentinel announce-port 26379
+networks:
+  redis-net:
+    driver: bridge
