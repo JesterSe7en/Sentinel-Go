@@ -50,7 +50,8 @@ make run
 ```
 
 The server starts on:
-- **HTTP**: http://localhost:8080
+
+- **HTTP**: <http://localhost:8080>
 - **gRPC**: localhost:50051
 
 ## Usage
@@ -132,6 +133,7 @@ go test ./...
 - [x] Custom response headers (X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset)
 - [x] Configurable fail-open/fail-closed behavior on Redis timeout
 - [x] Health check endpoints (/health, /ready)
+- [x] Authentication/authorization for gRPC control plane via mTLS
 
 ### In Progress
 
@@ -142,8 +144,8 @@ go test ./...
 - [ ] Rate limiting by endpoint/path
 - [ ] Configurable rate limits via config file (YAML/JSON)
 - [ ] Graceful algorithm switching with warm-up period (run algorithms in parallel during transition)
-- [ ] Authentication/authorization for gRPC control plane
 - [ ] Add K6 load testing
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
