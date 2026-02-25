@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"net"
@@ -17,6 +19,7 @@ import (
 	"github.com/JesterSe7en/Sentinel-Go/internal/logger"
 	"github.com/JesterSe7en/Sentinel-Go/internal/storage"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
@@ -68,6 +71,7 @@ func New(sCfg *config.SentinelAppConfig) (*App, error) {
 func (a *App) Run() error {
 	defer a.Log.Sync()
 
+	// ------ Initilize gRPC server ------------
 	if err := a.initGRPC(); err != nil {
 		return fmt.Errorf("failed to initialize gRPC: %w", err)
 	}
@@ -84,6 +88,7 @@ func (a *App) Run() error {
 		}
 	}()
 
+	// ------ Initilize http server ------------
 	mux := http.NewServeMux()
 
 	mockAPI := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -147,7 +152,48 @@ func (a *App) Run() error {
 
 func (a *App) initGRPC() error {
 	handler := limiter.NewGRPCHandler(a.engine)
-	a.grpcServer = grpc.NewServer()
+	cred, err := a.loadTLSCredentials()
+	if err != nil {
+		return fmt.Errorf("failed to load TLS credentials: %w", err)
+	}
+	a.grpcServer = grpc.NewServer(grpc.Creds(cred))
 	pb.RegisterRateLimiterServiceServer(a.grpcServer, handler)
 	return nil
+}
+
+func (a *App) loadTLSCredentials() (credentials.TransportCredentials, error) {
+	// sources: https://grpc.io/docs/guides/auth/
+	// https://github.com/grpc/grpc-go/blob/master/examples/features/encryption/mTLS/server/main.go
+	// https://github.com/grpc/grpc-go/blob/master/Documentation/grpc-auth-support.md
+	// "If certificates to establish the identity of the client need to be included in the
+	// credentials (eg: for mTLS), use NewTLS instead, where a complete tls.Config can be specified."
+
+	// get ca
+
+	caCert, err := os.ReadFile("certs/ca.crt")
+	if err != nil {
+		return nil, fmt.Errorf("failed to read CA certificate: %w", err)
+	}
+
+	// x509 = a standardized digital document (defined by ITU-T) that acts as a
+	// "digital passport," binding a public key to an identity (user, server, or device)
+	// to enable secure, trusted communication.
+	caCertPool := x509.NewCertPool()
+	// PEM is the encoding format for the .crt file
+	if !caCertPool.AppendCertsFromPEM(caCert) {
+		return nil, fmt.Errorf("failed to append CA certificate to pool")
+	}
+
+	serverCert, err := tls.LoadX509KeyPair("certs/server.crt", "certs/server.key")
+	if err != nil {
+		return nil, fmt.Errorf("failed to load server certificate: %w", err)
+	}
+
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{serverCert},
+		ClientCAs:    caCertPool,
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+	}
+
+	return credentials.NewTLS(tlsConfig), nil
 }
