@@ -143,7 +143,7 @@ go test ./...
 - [ ] Configurable rate limits via config file (YAML/JSON)
 - [ ] Graceful algorithm switching with warm-up period (run algorithms in parallel during transition)
 - [ ] Authentication/authorization for gRPC control plane
-
+- [ ] Add K6 load testing
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
