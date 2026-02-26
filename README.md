@@ -22,14 +22,6 @@ A high-performance, distributed rate limiting service built in Go. Sentinel-Go p
 - Redis Sentinel cluster (for distributed, high-available rate limiting state)
 - `protoc` (for gRPC code generation)
 
-### Run with Docker
-
-```bash
-docker run -p 8080:8080 -p 50051:50051 \
-  -e REDIS_SENTINELS=<address to redis sentinels> \
-  -e REDIS_MASTERNAME=<redis master name> \
-  sentinel-go
-```
 
 ### Build from Source
 
@@ -76,15 +68,20 @@ curl http://localhost:8080/metrics
 
 ### gRPC API
 
-```bash
-# List available algorithms
-grpcurl -plaintext localhost:50051 limiter.RateLimiter/ListAlgorithms
+Check under scripts for an example grpcurl command to communicate with the gRPC control plane
 
-# Get current algorithm
-grpcurl -plaintext localhost:50051 limiter.RateLimiter/GetCurrentAlgorithm
+```bash
 
 # Update algorithm
-grpcurl -plaintext -d '{"algorithm":"LeakyBucket"}' localhost:50051 limiter.RateLimiter/UpdateAlgorithm
+grpcurl \
+  -cacert ../certs/ca.crt \
+  -cert ../certs/client.crt \
+  -key ../certs/client.key \
+  -proto ../api/v1/limiter.proto \
+  -d "{\"algo\": \"$ALGO\"}" \
+  127.0.0.1:50051 \
+  sentinel.api.v1.RateLimiterService/UpdateAlgorithm
+
 ```
 
 ## Configuration
@@ -93,9 +90,13 @@ grpcurl -plaintext -d '{"algorithm":"LeakyBucket"}' localhost:50051 limiter.Rate
 |----------|-------------|---------|
 | `HTTP_PORT` | HTTP server port | 8080 |
 | `GRPC_PORT` | gRPC server port | 50051 |
-| `REDIS_SENTINELS` | Redis Sentinel addresses (comma-separated) | - |
+| `SHUTDOWN_TIMEOUT` | Seconds to wait for graceful shutdown before force-terminating | 15 |
+| `LOG_LEVEL` | Minimum log level to output (options: debug, info, warn, error) | info |
+| `LOG_PATH` | File path where logs will be written | - |
 | `REDIS_MASTERNAME` | Redis Sentinel master name | - |
 | `REDIS_PASSWORD` | Redis password | - |
+| `REDIS_SENTINELS` | Redis Sentinel addresses (comma-separated) | - |
+| `REDIS_DB` | Redis database number to use (default: 0-15 typically available) | - |
 | `RATE_LIMIT_ALGORITHM` | Initial rate limiting algorithm | TokenBucket |
 
 ## Project Structure
@@ -142,7 +143,7 @@ go test ./...
 ### Future Work
 
 - [ ] Rate limiting by endpoint/path
-- [ ] Configurable rate limits via config file (YAML/JSON)
+- [ ] Configurable rate limits via config file (YAML)
 - [ ] Graceful algorithm switching with warm-up period (run algorithms in parallel during transition)
 - [ ] Hook up Grafana for data visualization
 - [ ] Add K6 load testing
