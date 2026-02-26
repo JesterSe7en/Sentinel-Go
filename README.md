@@ -105,6 +105,7 @@ grpcurl \
 Sentinel-Go/
 ├── api/v1                  # Protocol Buffer definitions
 │   ├── pb/                 # Generated protobuf code
+├── certs/                  # TLS certificates for mTLS
 ├── cmd/server/             # Application entry point
 ├── internal/
 │   ├── algorithm/          # Algorithm type definitions
@@ -113,6 +114,9 @@ Sentinel-Go/
 │   ├── limiter/            # Core rate limiting engine
 │   ├── logger/             # Structured logging
 │   └── storage/            # Redis storage layer
+├── redis_docker-compose.yml # Local Redis Sentinel setup
+├── scripts/                # Utility scripts
+│   └── grpc_switchAlgo.sh # gRPC algorithm switching script
 ├── .env.example            # Environment configuration template
 └── Makefile                # Build automation
 ```
