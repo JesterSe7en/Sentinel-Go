@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/JesterSe7en/Sentinel-Go/api/v1/pb"
 	"github.com/JesterSe7en/Sentinel-Go/internal/config"
@@ -34,6 +33,7 @@ type App struct {
 	httpServer *http.Server
 	grpcServer *grpc.Server
 	reg        *prometheus.Registry
+	appCfg     *config.SentinelAppConfig
 }
 
 // New creates and returns a new app instance.
@@ -65,6 +65,7 @@ func New(sCfg *config.SentinelAppConfig) (*App, error) {
 		engine:  engine,
 		storage: rdb,
 		reg:     reg,
+		appCfg:  sCfg,
 	}, nil
 }
 
@@ -76,13 +77,13 @@ func (a *App) Run() error {
 		return fmt.Errorf("failed to initialize gRPC: %w", err)
 	}
 
-	grpcLis, err := net.Listen("tcp", ":50051")
+	grpcLis, err := net.Listen("tcp", a.appCfg.ServerCfg.GRPCPort)
 	if err != nil {
 		return fmt.Errorf("failed to listen on gRPC port: %w", err)
 	}
 
 	go func() {
-		a.Log.Info("starting_grpc_server", "address", ":50051")
+		a.Log.Info("starting_grpc_server", "address", a.appCfg.ServerCfg.GRPCPort)
 		if err := a.grpcServer.Serve(grpcLis); err != nil {
 			a.Log.Error("grpc_server_error", "error", err)
 		}
@@ -111,7 +112,7 @@ func (a *App) Run() error {
 	}))
 
 	a.httpServer = &http.Server{
-		Addr:    ":8080",
+		Addr:    ":" + a.appCfg.ServerCfg.HTTPPort,
 		Handler: mux,
 	}
 
@@ -136,7 +137,8 @@ func (a *App) Run() error {
 	case sig := <-sigChan:
 		a.Log.Info("shutdown_signal_received", "signal", sig)
 
-		shutdownCtx, shutdownRelease := context.WithTimeout(context.Background(), 10*time.Second)
+		shutdownCtx, shutdownRelease := context.WithTimeout(
+			context.Background(), a.appCfg.BootstrapCfg.ShutdownTimeout)
 		defer shutdownRelease()
 
 		a.grpcServer.GracefulStop()

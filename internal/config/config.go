@@ -23,6 +23,7 @@ var (
 	ErrMissingLogLevel        = errors.New("config: LOG_LEVEL is required")
 	ErrMissingLogPath         = errors.New("config: LOG_PATH is required")
 	ErrInvalidLogPath         = errors.New("config: LOG_PATH must be a valid path")
+	ErrMissingCertConfig      = errors.New("config: Missing server certification configuration")
 )
 
 type SentinelAppConfig struct {
@@ -30,6 +31,7 @@ type SentinelAppConfig struct {
 	RedisCfg     RedisConfig
 	RateLimitCfg RateLimitConfig
 	ServerCfg    ServerConfig
+	CertCfg      CertConfig
 }
 
 type BootstrapConfig struct {
@@ -107,6 +109,12 @@ type ServerConfig struct {
 	GRPCPort string
 }
 
+type CertConfig struct {
+	certCAPath        string
+	certServerCRTPath string
+	certSeverKeyPath  string
+}
+
 func Load() (*SentinelAppConfig, error) {
 	redisConfig, err := loadRedisConfig()
 	if err != nil {
@@ -128,11 +136,14 @@ func Load() (*SentinelAppConfig, error) {
 		return nil, fmt.Errorf("failed to load server config: %w", err)
 	}
 
+	certConfig, err := loadCertConfig()
+
 	return &SentinelAppConfig{
 		BootstrapCfg: bootstrapConfig,
 		RedisCfg:     redisConfig,
 		RateLimitCfg: rateLimitConfig,
 		ServerCfg:    serverConfig,
+		CertCfg:      certConfig,
 	}, nil
 }
 
@@ -235,5 +246,20 @@ func loadServerConfig() (ServerConfig, error) {
 	return ServerConfig{
 		HTTPPort: httpPort,
 		GRPCPort: grpcPort,
+	}, nil
+}
+
+func loadCertConfig() (CertConfig, error) {
+	caPath := os.Getenv("CERT_CA_PATH")
+	certSRTPath := os.Getenv("CERT_SERVER_CRT_PATH")
+	certSKeyPath := os.Getenv("CERT_SERVER_KEY_PATH")
+
+	if caPath == "" || certSRTPath == "" || certSKeyPath == "" {
+		return CertConfig{}, ErrMissingCertConfig
+	}
+	return CertConfig{
+		certCAPath:        caPath,
+		certServerCRTPath: certSRTPath,
+		certSeverKeyPath:  certSKeyPath,
 	}, nil
 }
