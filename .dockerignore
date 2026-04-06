@@ -1,0 +1,9 @@
+.git
+.github
+bin/
+*.log
+.env
+certs/*.key
+certs/*.crt
+certs/*.pem
+README.md
