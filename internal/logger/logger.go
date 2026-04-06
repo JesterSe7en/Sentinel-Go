@@ -21,7 +21,7 @@ func New(filename string, debug bool, verbose bool) (*Logger, error) {
 		cfg.DisableStacktrace = true
 	}
 	if filename == "" {
-		cfg.OutputPaths = []string{"stderr"}
+		cfg.OutputPaths = []string{"stdout"}
 		cfg.ErrorOutputPaths = []string{"stderr"}
 	} else {
 		cfg.OutputPaths = []string{filename}
