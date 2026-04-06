@@ -77,7 +77,7 @@ func (a *App) Run() error {
 		return fmt.Errorf("failed to initialize gRPC: %w", err)
 	}
 
-	grpcLis, err := net.Listen("tcp", a.appCfg.ServerCfg.GRPCPort)
+	grpcLis, err := net.Listen("tcp", ":"+a.appCfg.ServerCfg.GRPCPort)
 	if err != nil {
 		return fmt.Errorf("failed to listen on gRPC port: %w", err)
 	}
