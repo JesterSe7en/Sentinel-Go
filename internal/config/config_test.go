@@ -18,6 +18,9 @@ var validEnv = map[string]string{
 	"LOG_LEVEL":            "info",
 	"LOG_PATH":             "/tmp/sentinel.log",
 	"SHUTDOWN_TIMEOUT":     "30",
+	"CERT_CA_PATH":         "/tmp/ca.crt",
+	"CERT_SERVER_CRT_PATH": "/tmp/server.crt",
+	"CERT_SERVER_KEY_PATH": "/tmp/server.key",
 }
 
 func setValidEnv(t *testing.T) {
@@ -78,8 +81,10 @@ func TestLoad_MissingEnvVars(t *testing.T) {
 		{"missing HTTP_PORT", "HTTP_PORT", ErrMissingHTTPPort},
 		{"missing GRPC_PORT", "GRPC_PORT", ErrMissingGRPCPort},
 		{"missing LOG_LEVEL", "LOG_LEVEL", ErrMissingLogLevel},
-		{"missing LOG_PATH", "LOG_PATH", ErrMissingLogPath},
 		{"missing SHUTDOWN_TIMEOUT", "SHUTDOWN_TIMEOUT", ErrInvalidShutdownTimeout},
+		{"missing CERT_CA_PATH", "CERT_CA_PATH", ErrMissingCertConfig},
+		{"missing CERT_SERVER_CRT_PATH", "CERT_SERVER_CRT_PATH", ErrMissingCertConfig},
+		{"missing CERT_SERVER_KEY_PATH", "CERT_SERVER_KEY_PATH", ErrMissingCertConfig},
 	}
 
 	for _, tt := range tests {
@@ -298,15 +303,6 @@ func TestLoadBootstrapConfig_MissingInvalidFields(t *testing.T) {
 			wantErrIs: ErrMissingLogLevel,
 		},
 		{
-			name: "missing LOG_PATH",
-			setup: func(t *testing.T) {
-				t.Setenv("LOG_LEVEL", "info")
-				t.Setenv("SHUTDOWN_TIMEOUT", "30")
-				os.Unsetenv("LOG_PATH")
-			},
-			wantErrIs: ErrMissingLogPath,
-		},
-		{
 			name: "invalid SHUTDOWN_TIMEOUT",
 			setup: func(t *testing.T) {
 				t.Setenv("LOG_LEVEL", "info")
@@ -382,6 +378,72 @@ func TestLoadServerConfig_MissingFields(t *testing.T) {
 			}
 			if !errors.Is(err, tt.wantErrIs) {
 				t.Errorf("error = %v, want errors.Is(%v)", err, tt.wantErrIs)
+			}
+		})
+	}
+}
+
+func TestLoadCertConfig_Valid(t *testing.T) {
+	t.Setenv("CERT_CA_PATH", "/etc/certs/ca.crt")
+	t.Setenv("CERT_SERVER_CRT_PATH", "/etc/certs/server.crt")
+	t.Setenv("CERT_SERVER_KEY_PATH", "/etc/certs/server.key")
+
+	cfg, err := loadCertConfig()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.CertCAPath != "/etc/certs/ca.crt" {
+		t.Errorf("CertCAPath = %q, want %q", cfg.CertCAPath, "/etc/certs/ca.crt")
+	}
+	if cfg.CertServerCRTPath != "/etc/certs/server.crt" {
+		t.Errorf("CertServerCRTPath = %q, want %q", cfg.CertServerCRTPath, "/etc/certs/server.crt")
+	}
+	if cfg.CertSeverKeyPath != "/etc/certs/server.key" {
+		t.Errorf("CertSeverKeyPath = %q, want %q", cfg.CertSeverKeyPath, "/etc/certs/server.key")
+	}
+}
+
+func TestLoadCertConfig_MissingFields(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(t *testing.T)
+	}{
+		{
+			name: "missing CERT_CA_PATH",
+			setup: func(t *testing.T) {
+				t.Setenv("CERT_SERVER_CRT_PATH", "/etc/certs/server.crt")
+				t.Setenv("CERT_SERVER_KEY_PATH", "/etc/certs/server.key")
+				os.Unsetenv("CERT_CA_PATH")
+			},
+		},
+		{
+			name: "missing CERT_SERVER_CRT_PATH",
+			setup: func(t *testing.T) {
+				t.Setenv("CERT_CA_PATH", "/etc/certs/ca.crt")
+				t.Setenv("CERT_SERVER_KEY_PATH", "/etc/certs/server.key")
+				os.Unsetenv("CERT_SERVER_CRT_PATH")
+			},
+		},
+		{
+			name: "missing CERT_SERVER_KEY_PATH",
+			setup: func(t *testing.T) {
+				t.Setenv("CERT_CA_PATH", "/etc/certs/ca.crt")
+				t.Setenv("CERT_SERVER_CRT_PATH", "/etc/certs/server.crt")
+				os.Unsetenv("CERT_SERVER_KEY_PATH")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setup(t)
+
+			_, err := loadCertConfig()
+			if err == nil {
+				t.Fatalf("expected error, got nil")
+			}
+			if !errors.Is(err, ErrMissingCertConfig) {
+				t.Errorf("error = %v, want errors.Is(%v)", err, ErrMissingCertConfig)
 			}
 		})
 	}

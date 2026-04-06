@@ -38,7 +38,7 @@ type App struct {
 
 // New creates and returns a new app instance.
 func New(sCfg *config.SentinelAppConfig) (*App, error) {
-	log, err := logger.New("sentinel.log", false, true)
+	log, err := logger.New("", false, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize logger: %w", err)
 	}
@@ -172,7 +172,9 @@ func (a *App) loadTLSCredentials() (credentials.TransportCredentials, error) {
 
 	// get ca
 
-	caCert, err := os.ReadFile("certs/ca.crt")
+	certCfg := a.appCfg.CertCfg
+
+	caCert, err := os.ReadFile(certCfg.CertCAPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read CA certificate: %w", err)
 	}
@@ -186,7 +188,7 @@ func (a *App) loadTLSCredentials() (credentials.TransportCredentials, error) {
 		return nil, fmt.Errorf("failed to append CA certificate to pool")
 	}
 
-	serverCert, err := tls.LoadX509KeyPair("certs/server.crt", "certs/server.key")
+	serverCert, err := tls.LoadX509KeyPair(certCfg.CertServerCRTPath, certCfg.CertSeverKeyPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load server certificate: %w", err)
 	}
