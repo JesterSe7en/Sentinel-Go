@@ -6,6 +6,14 @@ CMD_DIR=cmd/server
 proto:
 	protoc --go_out=. --go-grpc_out=. api/v1/limiter.proto
 
+.PHONY: test
+test:
+	go test ./...
+
+.PHONY: test-verbose
+test-verbose:
+	go test -v ./...
+
 .PHONY: build
 build: proto
 	mkdir -p $(BIN_DIR)
@@ -18,3 +26,7 @@ run: build
 .PHONY: clean
 clean:
 	rm -rf $(BIN_DIR)
+
+.PHONY: build-docker-arm64
+build-docker-arm64: build
+	./scripts/build_docker_arm64.sh
