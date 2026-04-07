@@ -16,10 +16,16 @@ type Logger struct {
 }
 
 func New(filename string, debug bool, verbose bool) (*Logger, error) {
-	cfg := zap.NewDevelopmentConfig()
-	if !debug {
+	// Use development config (human-readable) for debug mode; production config
+	// (JSON) otherwise so AWS CloudWatch can parse structured log fields.
+	var cfg zap.Config
+	if debug {
+		cfg = zap.NewDevelopmentConfig()
+	} else {
+		cfg = zap.NewProductionConfig()
 		cfg.DisableStacktrace = true
 	}
+
 	if filename == "" {
 		cfg.OutputPaths = []string{"stdout"}
 		cfg.ErrorOutputPaths = []string{"stderr"}
@@ -39,7 +45,6 @@ func New(filename string, debug bool, verbose bool) (*Logger, error) {
 		cfg.Level = zap.NewAtomicLevelAt(zap.WarnLevel)
 	}
 
-	var err error
 	l, err := cfg.Build()
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize logger: %v", err)

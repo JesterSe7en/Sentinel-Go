@@ -120,7 +120,7 @@ func getErrorType(err error) string {
 	}
 }
 
-func NewRedisStorage(masterName string, sentinels []string, password string, db int, reg prometheus.Registerer) *RedisStorage {
+func NewRedisStorage(masterName string, sentinels []string, password string, db int, reg prometheus.Registerer) (*RedisStorage, error) {
 	rdb := redis.NewFailoverClient(&redis.FailoverOptions{
 		MasterName:    masterName,
 		SentinelAddrs: sentinels,
@@ -130,10 +130,8 @@ func NewRedisStorage(masterName string, sentinels []string, password string, db 
 		MinIdleConns:  5,
 	})
 
-	status := rdb.Ping(context.Background())
-
-	if err := status.Err(); err != nil {
-		panic(fmt.Sprintf("failed to connect to redis cluster: %v", err))
+	if err := rdb.Ping(context.Background()).Err(); err != nil {
+		return nil, fmt.Errorf("failed to connect to redis sentinel: %w", err)
 	}
 
 	m := registerRedisMetrics(reg)
@@ -146,7 +144,7 @@ func NewRedisStorage(masterName string, sentinels []string, password string, db 
 
 	go storage.collectPoolMetrics()
 
-	return storage
+	return storage, nil
 }
 
 func (rs *RedisStorage) Close() {

@@ -138,12 +138,14 @@ func (se *SentinelEngine) Allow(ctx context.Context, key string) (storage.RateLi
 	algo, err := se.GetCurrentAlgorithm(ctx)
 	configTimer.ObserveDuration()
 	if err != nil {
+		se.log.Error("allow_get_algorithm_failed", "error", err)
 		se.engineMetrics.sentinelAllowErrorsTotal.WithLabelValues("redis_error").Inc()
 		return storage.RateLimitResult{}, err
 	}
 
 	changeTo, err := algorithm.ParseAlgorithm(algo)
 	if err != nil {
+		se.log.Error("allow_parse_algorithm_failed", "algorithm", algo, "error", err)
 		return storage.RateLimitResult{}, err
 	}
 
@@ -192,6 +194,7 @@ func (se *SentinelEngine) UpdateAlgorithm(ctx context.Context, algo algorithm.Ra
 		return fmt.Errorf("failed to update algorithm: %w", err)
 	}
 
+	se.log.Info("algorithm_updated", "from", currentAlgo, "to", algo.String())
 	se.engineMetrics.sentinelAlgorithmSwitches.WithLabelValues(currentAlgo, algo.String()).Inc()
 	se.engineMetrics.sentinelAlgorithmInUse.WithLabelValues(algo.String()).Set(1)
 
@@ -234,10 +237,16 @@ func (se *SentinelEngine) GetFailOpen(ctx context.Context) (bool, error) {
 }
 
 func (se *SentinelEngine) SetFailOpen(ctx context.Context, failOpen bool) (bool, error) {
+	previous := se.rateLimitConfig.FailOpen
 	se.rateLimitConfig.FailOpen = failOpen
 
-	return se.rdb.Set(ctx, failOpenConfigKey, strconv.FormatBool(failOpen), 0)
+	ok, err := se.rdb.Set(ctx, failOpenConfigKey, strconv.FormatBool(failOpen), 0)
+	if err != nil {
+		return false, err
+	}
 
+	se.log.Info("fail_open_updated", "from", previous, "to", failOpen)
+	return ok, nil
 }
 
 func getClientTypeFromKey(key string) string {

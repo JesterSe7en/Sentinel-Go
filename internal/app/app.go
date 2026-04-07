@@ -50,10 +50,11 @@ func New(sCfg *config.SentinelAppConfig) (*App, error) {
 	)
 
 	rc := sCfg.RedisCfg
-	rdb := storage.NewRedisStorage(rc.MasterName, rc.SentinelAddrs, rc.Password, rc.DB, reg)
-	if rdb == nil {
+	rdb, err := storage.NewRedisStorage(rc.MasterName, rc.SentinelAddrs, rc.Password, rc.DB, reg)
+	if err != nil {
 		return nil, fmt.Errorf("failed to connect to Redis: %w", err)
 	}
+	log.Info("redis_connected", "master", rc.MasterName, "sentinels", rc.SentinelAddrs)
 
 	engine, err := limiter.NewSentinelEngine(rdb, log, sCfg, reg)
 	if err != nil {
@@ -83,7 +84,7 @@ func (a *App) Run() error {
 	}
 
 	go func() {
-		a.Log.Info("starting_grpc_server", "address", a.appCfg.ServerCfg.GRPCPort)
+		a.Log.Info("starting_grpc_server", "address", ":"+a.appCfg.ServerCfg.GRPCPort)
 		if err := a.grpcServer.Serve(grpcLis); err != nil {
 			a.Log.Error("grpc_server_error", "error", err)
 		}
@@ -102,8 +103,8 @@ func (a *App) Run() error {
 		w.Write([]byte("OK"))
 	}))
 	mux.Handle("/ready", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		err := a.engine.PingRDB(context.Background())
-		if err != nil {
+		if err := a.engine.PingRDB(context.Background()); err != nil {
+			a.Log.Error("readiness_check_failed", "error", err)
 			http.Error(w, err.Error(), http.StatusServiceUnavailable)
 			return
 		}
@@ -141,7 +142,9 @@ func (a *App) Run() error {
 			context.Background(), a.appCfg.BootstrapCfg.ShutdownTimeout)
 		defer shutdownRelease()
 
+		a.Log.Info("grpc_graceful_stop_start")
 		a.grpcServer.GracefulStop()
+		a.Log.Info("grpc_graceful_stop_complete")
 
 		if err := a.httpServer.Shutdown(shutdownCtx); err != nil {
 			return fmt.Errorf("graceful shutdown failed: %w", err)
@@ -158,6 +161,7 @@ func (a *App) initGRPC() error {
 	if err != nil {
 		return fmt.Errorf("failed to load TLS credentials: %w", err)
 	}
+	a.Log.Info("tls_credentials_loaded", "ca", a.appCfg.CertCfg.CertCAPath, "cert", a.appCfg.CertCfg.CertServerCRTPath)
 	a.grpcServer = grpc.NewServer(grpc.Creds(cred))
 	pb.RegisterRateLimiterServiceServer(a.grpcServer, handler)
 	return nil
