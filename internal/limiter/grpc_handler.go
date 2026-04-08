@@ -41,6 +41,14 @@ func NewGRPCHandler(e *SentinelEngine) *GRPCHandler {
 // Allow is the function that actually answers the gRPC request
 func (h *GRPCHandler) Allow(ctx context.Context, req *pb.AllowRequest) (*pb.AllowResponse, error) {
 	results, err := h.engine.Allow(ctx, req.Key)
+
+	decision := "rejected"
+	if results.Allowed {
+		decision = "allowed"
+	}
+	algo, _ := h.engine.GetCurrentAlgorithm(ctx)
+	h.engine.grpcMetrics.grpcAllowRequestTotal.WithLabelValues(decision, algo).Inc()
+
 	return &pb.AllowResponse{
 		Allowed:   results.Allowed,
 		Limit:     int32(results.Limit),
