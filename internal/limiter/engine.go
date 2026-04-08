@@ -55,28 +55,28 @@ func registerSentinelEngineMetrics(reg prometheus.Registerer) *SentinelEngineMet
 	return &SentinelEngineMetrics{
 		sentinelRequestTotal: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 			Name: "sentinel_requests_total",
-			Help: "help!",
+			Help: "Total number of rate limit requests processed, labeled by decision, algorithm, and client type.",
 		}, []string{"decision", "algorithm", "client_type"}),
 		sentinelCheckDuration: promauto.With(reg).NewHistogramVec(prometheus.HistogramOpts{
 			Name:    "sentinel_check_duration_seconds",
-			Help:    "help!",
+			Help:    "Duration in seconds of the rate limit allow check, labeled by algorithm.",
 			Buckets: []float64{0.001, 0.01, 0.1, 1, 10},
 		}, []string{"algorithm"}),
 		sentinelAlgorithmSwitches: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 			Name: "sentinel_algorithm_switches_total",
-			Help: "help!",
+			Help: "Total number of rate limiting algorithm hot-swaps, labeled by previous and new algorithm.",
 		}, []string{"from", "to"}),
 		sentinelAlgorithmInUse: promauto.With(reg).NewGaugeVec(prometheus.GaugeOpts{
 			Name: "sentinel_algorithm_in_use",
-			Help: "help!",
+			Help: "Indicates the currently active rate limiting algorithm (value of 1 for the active algorithm).",
 		}, []string{"algorithm"}),
 		sentinelAllowErrorsTotal: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 			Name: "sentinel_allow_errors_total",
-			Help: "help!",
+			Help: "Total number of errors encountered during rate limit allow checks, labeled by error type.",
 		}, []string{"error_type"}),
 		sentinelConfigFetchDuration: promauto.With(reg).NewHistogramVec(prometheus.HistogramOpts{
 			Name:    "sentinel_config_fetch_duration_seconds",
-			Help:    "help!",
+			Help:    "Duration in seconds to fetch rate limit configuration from the backing store, labeled by algorithm.",
 			Buckets: []float64{.0001, .0005, .001, .005, .01, .025, .05, .1},
 		}, []string{"algorithm"}),
 	}
