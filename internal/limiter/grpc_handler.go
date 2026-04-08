@@ -9,6 +9,7 @@ import (
 	"github.com/JesterSe7en/Sentinel-Go/api/v1/pb"
 	"github.com/JesterSe7en/Sentinel-Go/internal/algorithm"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 type GRPCMetrics struct {
@@ -17,7 +18,7 @@ type GRPCMetrics struct {
 
 func registerGRPCMetrics(reg prometheus.Registerer) *GRPCMetrics {
 	return &GRPCMetrics{
-		grpcAllowRequestTotal: prometheus.NewCounterVec(
+		grpcAllowRequestTotal: promauto.With(reg).NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "grpc_allow_request_total",
 				Help: "Total number of requests allowed via gRPC.",

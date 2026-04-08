@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -24,14 +25,14 @@ func getClientType(r *http.Request) string {
 
 func registerMiddlewareMetrics(reg prometheus.Registerer) *MiddlewareMetrics {
 	return &MiddlewareMetrics{
-		httpRequestRateLimitedTotal: prometheus.NewCounterVec(
+		httpRequestRateLimitedTotal: promauto.With(reg).NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "http_request_rate_limit_total",
 				Help: "Total number of rate limit checks performed.",
 			},
 			[]string{"endpoint", "method", "client_type"},
 		),
-		httpRequestAllowedTotal: prometheus.NewCounterVec(
+		httpRequestAllowedTotal: promauto.With(reg).NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "http_request_allowed_total",
 				Help: "Total number of requests allowed.",
