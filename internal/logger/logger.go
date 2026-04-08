@@ -15,6 +15,10 @@ type Logger struct {
 	logger *zap.SugaredLogger
 }
 
+func NewNop() *Logger {
+	return &Logger{logger: zap.NewNop().Sugar()}
+}
+
 func New(filename string, debug bool, verbose bool) (*Logger, error) {
 	// Use development config (human-readable) for debug mode; production config
 	// (JSON) otherwise so AWS CloudWatch can parse structured log fields.

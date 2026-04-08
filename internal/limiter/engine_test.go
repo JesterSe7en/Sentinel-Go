@@ -8,6 +8,7 @@ import (
 
 	"github.com/JesterSe7en/Sentinel-Go/internal/algorithm"
 	"github.com/JesterSe7en/Sentinel-Go/internal/config"
+	"github.com/JesterSe7en/Sentinel-Go/internal/logger"
 	"github.com/JesterSe7en/Sentinel-Go/internal/storage"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/v9"
@@ -111,6 +112,7 @@ func newTestEngine(t *testing.T, rdb *mockRedisStorage) *SentinelEngine {
 		engineMetrics:     registerSentinelEngineMetrics(newTestRegistry()),
 		middlewareMetrics: registerMiddlewareMetrics(newTestRegistry()),
 		grpcMetrics:       registerGRPCMetrics(newTestRegistry()),
+		log:               logger.NewNop(),
 	}
 }
 

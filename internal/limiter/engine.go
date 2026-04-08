@@ -82,8 +82,10 @@ func registerSentinelEngineMetrics(reg prometheus.Registerer) *SentinelEngineMet
 	}
 }
 
-const algorithmConfigKey = "sentinel:global:algorithm"
-const failOpenConfigKey = "sentinel:global:failopen"
+const (
+	algorithmConfigKey = "sentinel:global:algorithm"
+	failOpenConfigKey  = "sentinel:global:failopen"
+)
 
 func newSentinelEngineWithBackend(rdb RedisBackend, cfg *config.SentinelAppConfig, reg prometheus.Registerer) (*SentinelEngine, error) {
 	initialAlgo, err := algorithm.ParseAlgorithm(cfg.RateLimitCfg.Algorithm)
@@ -138,6 +140,7 @@ func (se *SentinelEngine) Allow(ctx context.Context, key string) (storage.RateLi
 	algo, err := se.GetCurrentAlgorithm(ctx)
 	configTimer.ObserveDuration()
 	if err != nil {
+		// this se.log is nil during engine_test TestAllow_GetAlgorithmFailure
 		se.log.Error("allow_get_algorithm_failed", "error", err)
 		se.engineMetrics.sentinelAllowErrorsTotal.WithLabelValues("redis_error").Inc()
 		return storage.RateLimitResult{}, err
