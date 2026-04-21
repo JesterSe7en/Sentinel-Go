@@ -143,6 +143,7 @@ go test ./...
 ### In Progress
 
 - [ ] Unit tests coverage improvements
+- [ ] Add K6 load testing
 
 ### Future Work
 
@@ -150,7 +151,7 @@ go test ./...
 - [ ] Configurable rate limits via config file (YAML)
 - [ ] Graceful algorithm switching with warm-up period (run algorithms in parallel during transition)
 - [ ] Hook up Grafana for data visualization
-- [ ] Add K6 load testing
+
 
 ## License
 
