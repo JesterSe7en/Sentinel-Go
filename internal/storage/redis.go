@@ -76,14 +76,6 @@ var algoRegistry = map[string]string{
 	"SlidingWindowCounter": "algos/sliding_window_counter.lua",
 }
 
-var (
-	TokenBucketScript          *redis.Script
-	LeakyBucketScript          *redis.Script
-	FixedWindowScript          *redis.Script
-	SlidingWindowLogScript     *redis.Script
-	SlidingWindowCounterScript *redis.Script
-)
-
 type RedisStorage struct {
 	rdb     *redis.Client
 	metrics *RedisMetrics

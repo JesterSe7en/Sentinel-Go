@@ -23,6 +23,9 @@ var (
 	ErrMissingLogLevel        = errors.New("config: LOG_LEVEL is required")
 	ErrInvalidLogPath         = errors.New("config: LOG_PATH must be a valid path")
 	ErrMissingCertConfig      = errors.New("config: Missing server certification configuration")
+	ErrMissingCertCAPath      = errors.New("config: CERT_CA_PATH is required")
+	ErrMissingCertSRTPath     = errors.New("config: CERT_SERVER_CRT_PATH is required")
+	ErrMissingCertSKeyPath    = errors.New("config: CERT_SERVER_KEY_PATH is required")
 )
 
 type SentinelAppConfig struct {
@@ -111,7 +114,7 @@ type ServerConfig struct {
 type CertConfig struct {
 	CertCAPath        string
 	CertServerCRTPath string
-	CertSeverKeyPath  string
+	CertServerKeyPath  string
 }
 
 func Load() (*SentinelAppConfig, error) {
@@ -253,12 +256,19 @@ func loadCertConfig() (CertConfig, error) {
 	certSRTPath := os.Getenv("CERT_SERVER_CRT_PATH")
 	certSKeyPath := os.Getenv("CERT_SERVER_KEY_PATH")
 
-	if caPath == "" || certSRTPath == "" || certSKeyPath == "" {
-		return CertConfig{}, ErrMissingCertConfig
+	if caPath == "" {
+		return CertConfig{}, ErrMissingCertCAPath
 	}
+	if certSRTPath == "" {
+		return CertConfig{}, ErrMissingCertSRTPath
+	}
+	if certSKeyPath == "" {
+		return CertConfig{}, ErrMissingCertSKeyPath
+	}
+
 	return CertConfig{
 		CertCAPath:        caPath,
 		CertServerCRTPath: certSRTPath,
-		CertSeverKeyPath:  certSKeyPath,
+		CertServerKeyPath:  certSKeyPath,
 	}, nil
 }

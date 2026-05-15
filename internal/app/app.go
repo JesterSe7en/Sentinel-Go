@@ -142,9 +142,18 @@ func (a *App) Run() error {
 			context.Background(), a.appCfg.BootstrapCfg.ShutdownTimeout)
 		defer shutdownRelease()
 
-		a.Log.Info("grpc_graceful_stop_start")
-		a.grpcServer.GracefulStop()
-		a.Log.Info("grpc_graceful_stop_complete")
+		// TODO: centralize closing resources.  maybe an app.close() or something
+		if a.grpcServer != nil {
+			a.Log.Info("grpc_graceful_stop_start")
+			a.grpcServer.GracefulStop()
+			a.Log.Info("grpc_graceful_stop_complete")
+		}
+
+		if a.storage != nil {
+			a.Log.Info("redis_graceful_stop_start")
+			a.storage.Close()
+			a.Log.Info("redis_graceful_stop_complete")
+		}
 
 		if err := a.httpServer.Shutdown(shutdownCtx); err != nil {
 			return fmt.Errorf("graceful shutdown failed: %w", err)
@@ -192,7 +201,7 @@ func (a *App) loadTLSCredentials() (credentials.TransportCredentials, error) {
 		return nil, fmt.Errorf("failed to append CA certificate to pool")
 	}
 
-	serverCert, err := tls.LoadX509KeyPair(certCfg.CertServerCRTPath, certCfg.CertSeverKeyPath)
+	serverCert, err := tls.LoadX509KeyPair(certCfg.CertServerCRTPath, certCfg.CertServerKeyPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load server certificate: %w", err)
 	}

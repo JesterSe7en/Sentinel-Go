@@ -398,8 +398,8 @@ func TestLoadCertConfig_Valid(t *testing.T) {
 	if cfg.CertServerCRTPath != "/etc/certs/server.crt" {
 		t.Errorf("CertServerCRTPath = %q, want %q", cfg.CertServerCRTPath, "/etc/certs/server.crt")
 	}
-	if cfg.CertSeverKeyPath != "/etc/certs/server.key" {
-		t.Errorf("CertSeverKeyPath = %q, want %q", cfg.CertSeverKeyPath, "/etc/certs/server.key")
+	if cfg.CertServerKeyPath != "/etc/certs/server.key" {
+		t.Errorf("CertSeverKeyPath = %q, want %q", cfg.CertServerKeyPath, "/etc/certs/server.key")
 	}
 }
 
