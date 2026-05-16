@@ -115,6 +115,10 @@ func (a *App) Run() error {
 	a.httpServer = &http.Server{
 		Addr:    ":" + a.appCfg.ServerCfg.HTTPPort,
 		Handler: mux,
+		ReadHeaderTimeout: a.appCfg.ServerCfg.ReadHeaderTimeout,
+		ReadTimeout: a.appCfg.ServerCfg.ReadTimeout,
+		WriteTimeout: a.appCfg.ServerCfg.WriteTimeout,
+		IdleTimeout: a.appCfg.ServerCfg.IdleTimeout,
 	}
 
 	serverErrors := make(chan error, 1)

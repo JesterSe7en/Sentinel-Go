@@ -26,6 +26,14 @@ var (
 	ErrMissingCertCAPath      = errors.New("config: CERT_CA_PATH is required")
 	ErrMissingCertSRTPath     = errors.New("config: CERT_SERVER_CRT_PATH is required")
 	ErrMissingCertSKeyPath    = errors.New("config: CERT_SERVER_KEY_PATH is required")
+	ErrMissingReadHeaderTimeout = errors.New("config: READ_HEADER_TIMEOUT is required")
+	ErrMissingReadTimeout       = errors.New("config: READ_TIMEOUT is required")
+	ErrMissingWriteTimeout      = errors.New("config: WRITE_TIMEOUT is required")
+	ErrMissingIdleTimeout       = errors.New("config: IDLE_TIMEOUT is required")
+	ErrInvalidReadHeaderTimeout = errors.New("config: READ_HEADER_TIMEOUT must be a valid duration")
+	ErrInvalidReadTimeout       = errors.New("config: READ_TIMEOUT must be a valid duration")
+	ErrInvalidWriteTimeout      = errors.New("config: WRITE_TIMEOUT must be a valid duration")
+	ErrInvalidIdleTimeout       = errors.New("config: IDLE_TIMEOUT must be a valid duration")
 )
 
 type SentinelAppConfig struct {
@@ -107,8 +115,12 @@ type RedisConfig struct {
 }
 
 type ServerConfig struct {
-	HTTPPort string
-	GRPCPort string
+	HTTPPort          string
+	ReadHeaderTimeout time.Duration
+	ReadTimeout       time.Duration
+	WriteTimeout      time.Duration
+	IdleTimeout       time.Duration
+	GRPCPort          string
 }
 
 type CertConfig struct {
@@ -245,9 +257,49 @@ func loadServerConfig() (ServerConfig, error) {
 		return ServerConfig{}, ErrMissingGRPCPort
 	}
 
+	readHeaderTimeout := os.Getenv("READ_HEADER_TIMEOUT")
+	if readHeaderTimeout == "" {
+		return ServerConfig{}, ErrMissingReadHeaderTimeout
+	}
+	rhT, err := time.ParseDuration(readHeaderTimeout)
+	if err != nil {
+		return ServerConfig{}, ErrInvalidReadHeaderTimeout
+	}
+
+	readTimeout := os.Getenv("READ_TIMEOUT")
+	if readTimeout == "" {
+		return ServerConfig{}, ErrMissingReadTimeout
+	}
+	readT, err := time.ParseDuration(readTimeout)
+	if err != nil {
+		return ServerConfig{}, ErrInvalidReadTimeout
+	}
+
+	writeTimeout := os.Getenv("WRITE_TIMEOUT")
+	if writeTimeout == "" {
+		return ServerConfig{}, ErrMissingWriteTimeout
+	}
+	writeT, err := time.ParseDuration(writeTimeout)
+	if err != nil {
+		return ServerConfig{}, ErrInvalidWriteTimeout
+	}
+
+	idleTimeout := os.Getenv("IDLE_TIMEOUT")
+	if idleTimeout == "" {
+		return ServerConfig{}, ErrMissingIdleTimeout
+	}
+	idleT, err := time.ParseDuration(idleTimeout)
+	if err != nil {
+		return ServerConfig{}, ErrInvalidIdleTimeout
+	}
+
 	return ServerConfig{
 		HTTPPort: httpPort,
-		GRPCPort: grpcPort,
+		GRPCPort:          grpcPort,
+		ReadHeaderTimeout: rhT,
+		ReadTimeout:       readT,
+		WriteTimeout:      writeT,
+		IdleTimeout:       idleT,
 	}, nil
 }
 
