@@ -140,6 +140,7 @@ func NewRedisStorage(masterName string, sentinels []string, password string, db 
 }
 
 func (rs *RedisStorage) Close() {
+	rs.rdb.Close()
 	close(rs.stopCh)
 }
 
@@ -240,9 +241,16 @@ func (rs *RedisStorage) ExecuteScript(ctx context.Context, key string, algo algo
 	args := getArgsFromConfig(algoConfig)
 
 	results, err := scriptToRun.Run(ctx, rs.rdb, []string{key}, args).Int64Slice()
+	if err != nil {
+		return RateLimitResult{}, fmt.Errorf("cannot parse script result: %w", err)
+	}
 
 	// format will always be {allowed, limit, remaining, reset}
 	// matching gRPC response format
+	if len(results) != 4 {
+		return RateLimitResult{}, fmt.Errorf("expected 4 results, got %d", len(results))
+	}
+
 	allowed, limit, remaining, reset := results[0], results[1], results[2], results[3]
 
 	scriptDuration := time.Since(scriptStart).Seconds()
