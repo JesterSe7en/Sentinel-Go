@@ -18,6 +18,10 @@ var validEnv = map[string]string{
 	"LOG_LEVEL":            "info",
 	"LOG_PATH":             "/tmp/sentinel.log",
 	"SHUTDOWN_TIMEOUT":     "30",
+	"READ_HEADER_TIMEOUT":  "2s",
+	"READ_TIMEOUT":         "10s",
+	"WRITE_TIMEOUT":        "10s",
+	"IDLE_TIMEOUT":         "30s",
 	"CERT_CA_PATH":         "/tmp/ca.crt",
 	"CERT_SERVER_CRT_PATH": "/tmp/server.crt",
 	"CERT_SERVER_KEY_PATH": "/tmp/server.key",
@@ -81,7 +85,12 @@ func TestLoad_MissingEnvVars(t *testing.T) {
 		{"missing HTTP_PORT", "HTTP_PORT", ErrMissingHTTPPort},
 		{"missing GRPC_PORT", "GRPC_PORT", ErrMissingGRPCPort},
 		{"missing LOG_LEVEL", "LOG_LEVEL", ErrMissingLogLevel},
+		{"missing LOG_PATH", "LOG_PATH", ErrMissingLogPath},
 		{"missing SHUTDOWN_TIMEOUT", "SHUTDOWN_TIMEOUT", ErrInvalidShutdownTimeout},
+		{"missing READ_HEADER_TIMEOUT", "READ_HEADER_TIMEOUT", ErrMissingReadHeaderTimeout},
+		{"missing READ_TIMEOUT", "READ_TIMEOUT", ErrMissingReadTimeout},
+		{"missing WRITE_TIMEOUT", "WRITE_TIMEOUT", ErrMissingWriteTimeout},
+		{"missing IDLE_TIMEOUT", "IDLE_TIMEOUT", ErrMissingIdleTimeout},
 		{"missing CERT_CA_PATH", "CERT_CA_PATH", ErrMissingCertConfig},
 		{"missing CERT_SERVER_CRT_PATH", "CERT_SERVER_CRT_PATH", ErrMissingCertConfig},
 		{"missing CERT_SERVER_KEY_PATH", "CERT_SERVER_KEY_PATH", ErrMissingCertConfig},
@@ -331,6 +340,10 @@ func TestLoadBootstrapConfig_MissingInvalidFields(t *testing.T) {
 func TestLoadServerConfig_Valid(t *testing.T) {
 	t.Setenv("HTTP_PORT", "9090")
 	t.Setenv("GRPC_PORT", "50052")
+	t.Setenv("READ_HEADER_TIMEOUT", "2s")
+	t.Setenv("READ_TIMEOUT", "10s")
+	t.Setenv("WRITE_TIMEOUT", "10s")
+	t.Setenv("IDLE_TIMEOUT", "30s")
 
 	cfg, err := loadServerConfig()
 	if err != nil {
@@ -341,6 +354,18 @@ func TestLoadServerConfig_Valid(t *testing.T) {
 	}
 	if cfg.GRPCPort != "50052" {
 		t.Errorf("GRPCPort = %q, want %q", cfg.GRPCPort, "50052")
+	}
+	if cfg.ReadHeaderTimeout != 2*time.Second {
+		t.Errorf("ReadHeaderTimeout = %v, want 2s", cfg.ReadHeaderTimeout)
+	}
+	if cfg.ReadTimeout != 10*time.Second {
+		t.Errorf("ReadTimeout = %v, want 10s", cfg.ReadTimeout)
+	}
+	if cfg.WriteTimeout != 10*time.Second {
+		t.Errorf("WriteTimeout = %v, want 10s", cfg.WriteTimeout)
+	}
+	if cfg.IdleTimeout != 30*time.Second {
+		t.Errorf("IdleTimeout = %v, want 30s", cfg.IdleTimeout)
 	}
 }
 

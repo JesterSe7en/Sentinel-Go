@@ -22,7 +22,6 @@ A high-performance, distributed rate limiting service built in Go. Sentinel-Go p
 - Redis Sentinel cluster (for distributed, high-available rate limiting state)
 - `protoc` (for gRPC code generation)
 
-
 ### Build from Source
 
 ```bash
@@ -50,7 +49,7 @@ The server starts on:
 
 Sentinel-Go exposes two protocols:
 
-- **HTTP (port 8080)**: Protected API endpoints go here.  The rate limiter middleware checks each request.
+- **HTTP (port 8080)**: Protected API endpoints go here. The rate limiter middleware checks each request.
 - **gRPC (port 50051)**: Control plane for managing the rate limiter (list algorithms, switch algorithms, check status).
 
 ### Test Rate Limiting
@@ -86,18 +85,23 @@ grpcurl \
 
 ## Configuration
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `HTTP_PORT` | HTTP server port | 8080 |
-| `GRPC_PORT` | gRPC server port | 50051 |
-| `SHUTDOWN_TIMEOUT` | Seconds to wait for graceful shutdown before force-terminating | 15 |
-| `LOG_LEVEL` | Minimum log level to output (options: debug, info, warn, error) | info |
-| `LOG_PATH` | File path where logs will be written | - |
-| `REDIS_MASTERNAME` | Redis Sentinel master name | - |
-| `REDIS_PASSWORD` | Redis password | - |
-| `REDIS_SENTINELS` | Redis Sentinel addresses (comma-separated) | - |
-| `REDIS_DB` | Redis database number to use (default: 0-15 typically available) | - |
-| `RATE_LIMIT_ALGORITHM` | Initial rate limiting algorithm | TokenBucket |
+| Variable               | Description                                                      | Default     |
+| ---------------------- | ---------------------------------------------------------------- | ----------- |
+| `HTTP_PORT`            | HTTP server port                                                 | 8080        |
+| `GRPC_PORT`            | gRPC server port                                                 | 50051       |
+| `READ_HEADER_TIMEOUT`  | Max time to read request headers (Go duration format)            | 2s          |
+| `READ_TIMEOUT`         | Max time to read the full request (Go duration format)           | 5s          |
+| `WRITE_TIMEOUT`        | Max time before timing out response writes (Go duration format)  | 5s          |
+| `IDLE_TIMEOUT`         | Max keep-alive idle time (Go duration format)                    | 2m          |
+| `SHUTDOWN_TIMEOUT`     | Seconds to wait for graceful shutdown before force-terminating   | 15          |
+| `LOG_LEVEL`            | Minimum log level to output (options: debug, info, warn, error)  | info        |
+| `LOG_PATH`             | File path where logs will be written                             | -           |
+| `REDIS_MASTERNAME`     | Redis Sentinel master name                                       | -           |
+| `REDIS_PASSWORD`       | Redis password                                                   | -           |
+| `REDIS_SENTINELS`      | Redis Sentinel addresses (comma-separated)                       | -           |
+| `REDIS_DB`             | Redis database number to use (default: 0-15 typically available) | -           |
+| `RATE_LIMIT_ALGORITHM` | Initial rate limiting algorithm                                  | TokenBucket |
+| `RATE_LIMIT_FAIL_OPEN` | If `true`, allow requests when limiter backend is unavailable    | false       |
 
 ## Project Structure
 
@@ -151,7 +155,6 @@ go test ./...
 - [ ] Configurable rate limits via config file (YAML)
 - [ ] Graceful algorithm switching with warm-up period (run algorithms in parallel during transition)
 - [ ] Hook up Grafana for data visualization
-
 
 ## License
 

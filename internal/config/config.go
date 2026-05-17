@@ -21,6 +21,7 @@ var (
 	ErrMissingHTTPPort        = errors.New("config: HTTP_PORT is required")
 	ErrMissingGRPCPort        = errors.New("config: GRPC_PORT is required")
 	ErrMissingLogLevel        = errors.New("config: LOG_LEVEL is required")
+	ErrMissingLogPath         = errors.New("config: LOG_PATH is required")
 	ErrInvalidLogPath         = errors.New("config: LOG_PATH must be a valid path")
 	ErrMissingCertConfig      = errors.New("config: Missing server certification configuration")
 	ErrMissingCertCAPath      = errors.New("config: CERT_CA_PATH is required")
@@ -195,6 +196,9 @@ func loadBootstrapConfig() (BootstrapConfig, error) {
 	}
 
 	logPath := os.Getenv("LOG_PATH")
+	if logPath == "" {
+		return BootstrapConfig{}, ErrMissingLogPath
+	}
 
 	dir := filepath.Dir(logPath)
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
@@ -309,13 +313,13 @@ func loadCertConfig() (CertConfig, error) {
 	certSKeyPath := os.Getenv("CERT_SERVER_KEY_PATH")
 
 	if caPath == "" {
-		return CertConfig{}, ErrMissingCertCAPath
+		return CertConfig{}, fmt.Errorf("%w: %w", ErrMissingCertConfig, ErrMissingCertCAPath)
 	}
 	if certSRTPath == "" {
-		return CertConfig{}, ErrMissingCertSRTPath
+		return CertConfig{}, fmt.Errorf("%w: %w", ErrMissingCertConfig, ErrMissingCertSRTPath)
 	}
 	if certSKeyPath == "" {
-		return CertConfig{}, ErrMissingCertSKeyPath
+		return CertConfig{}, fmt.Errorf("%w: %w", ErrMissingCertConfig, ErrMissingCertSKeyPath)
 	}
 
 	return CertConfig{
