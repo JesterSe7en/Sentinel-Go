@@ -142,15 +142,35 @@ func (a *App) Run() error {
 	case sig := <-sigChan:
 		a.Log.Info("shutdown_signal_received", "signal", sig)
 
-		shutdownCtx, shutdownRelease := context.WithTimeout(
-			context.Background(), a.appCfg.BootstrapCfg.ShutdownTimeout)
-		defer shutdownRelease()
+		httpShutdownCtx, httpShutdownRelease := context.WithTimeout(
+			context.Background(), a.appCfg.BootstrapCfg.ShutdownTimeout,
+		)
+		defer httpShutdownRelease()
+
+		grpcShutdownCtx, grpcShutdownRelease := context.WithTimeout(
+			context.Background(), a.appCfg.BootstrapCfg.ShutdownTimeout,
+		)
+		defer grpcShutdownRelease()
 
 		// TODO: centralize closing resources.  maybe an app.close() or something
 		if a.grpcServer != nil {
 			a.Log.Info("grpc_graceful_stop_start")
-			a.grpcServer.GracefulStop()
-			a.Log.Info("grpc_graceful_stop_complete")
+
+			done := make(chan struct{})
+			go func() {
+				a.grpcServer.GracefulStop()
+				close(done)
+			}()
+
+			select {
+			case <-done:
+				a.Log.Info("grpc_graceful_stop_complete")
+			case <-grpcShutdownCtx.Done():
+				a.Log.Warn("grpc_graceful_stop_timeout")
+				a.grpcServer.Stop()
+			}
+
+			a.grpcServer = nil
 		}
 
 		if a.storage != nil {
@@ -159,7 +179,7 @@ func (a *App) Run() error {
 			a.Log.Info("redis_graceful_stop_complete")
 		}
 
-		if err := a.httpServer.Shutdown(shutdownCtx); err != nil {
+		if err := a.httpServer.Shutdown(httpShutdownCtx); err != nil {
 			return fmt.Errorf("graceful shutdown failed: %w", err)
 		}
 		a.Log.Info("graceful_shutdown_complete")

@@ -254,12 +254,6 @@ func (rs *RedisStorage) ExecuteScript(ctx context.Context, key string, algo algo
 	allowed, limit, remaining, reset := results[0], results[1], results[2], results[3]
 
 	scriptDuration := time.Since(scriptStart).Seconds()
-	if err != nil {
-		rs.metrics.operationDuration.WithLabelValues("script", "error").Observe(scriptDuration)
-		rs.metrics.operationError.WithLabelValues("script", getErrorType(err)).Inc()
-		rs.metrics.rateLimiterDecisionTotal.WithLabelValues(key, "error", algoStr).Inc()
-		return RateLimitResult{}, err
-	}
 	rs.metrics.operationDuration.WithLabelValues("script", "success").Observe(scriptDuration)
 
 	decision := "allowed"
