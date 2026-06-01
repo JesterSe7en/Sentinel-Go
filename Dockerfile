@@ -9,12 +9,14 @@ ARG PROTOC_GEN_GRPC_VERSION
 
 # Make sure we install specific version of protoc - 35.0
 RUN apk add --no-cache curl unzip git && \
-  mkdir -p /usr/local/protoc && \
-  curl -sSL "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip" -o /tmp/protoc.zip && \
-  unzip -o /tmp/protoc.zip -d /usr/local/protoc && \
-  rm -f /tmp/protoc.zip
+    mkdir -p /third_party/protoc && \
+    curl -L "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip" -o /tmp/protoc.zip && \
+    unzip -o /tmp/protoc.zip -d /third_party/protoc && \
+    rm -f /tmp/protoc.zip && \
+    chmod +x /third_party/protoc/bin/protoc
 
-ENV PATH="/usr/local/protoc/bin:${PATH}"
+# Set PATH to include protoc
+ENV PATH="/third_party/protoc/bin:${PATH}"
 
 # Install protoc-gen-go and protoc-gen-grpc
 RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@${PROTOC_GEN_GO_VERSION} && \
