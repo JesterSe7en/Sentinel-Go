@@ -3,13 +3,25 @@ BIN_DIR=bin
 CMD_DIR=cmd/server
 
 PROTOC_VERSION = 35.0
-PROTOC_PLATFORM = osx-aarch_64
 PROTOC_NAME=$(PROTOC_VERSION)-$(PROTOC_PLATFORM)
 PROTOC_URL=https://github.com/protocolbuffers/protobuf/releases/download/v$(PROTOC_VERSION)/protoc-$(PROTOC_NAME).zip
 
 PROTOC_GEN_GO_VERSION=v1.36.11
 PROTOC_GEN_GRPC_VERSION=v1.6.2
 
+
+OS   := $(shell uname -s)
+ARCH := $(shell uname -m)
+
+ifeq ($(OS),Darwin)
+  PROTOC_PLATFORM = osx-aarch_64
+else ifeq ($(OS),Linux)
+  ifeq ($(ARCH),x86_64)
+    PROTOC_PLATFORM = linux-x86_64
+  else ifeq ($(ARCH),aarch64)
+    PROTOC_PLATFORM = linux-aarch_64
+  endif
+endif
 
 .PHONY: install-protoc
 install-protoc:
