@@ -34,6 +34,11 @@ proto: install-protoc install-go-plugins
 	@echo "Generating protobuf code..."
 	@third_party/protoc/bin/protoc --go_out=. --go-grpc_out=. api/v1/limiter.proto
 
+.PHONY: lint
+lint:
+	@echo "Linting..."
+	@go vet ./...
+
 .PHONY: test
 test:
 	@go test ./...
