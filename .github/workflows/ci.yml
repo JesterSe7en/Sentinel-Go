@@ -18,6 +18,9 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Generate proto files
+        run: make proto
+
       - name: Verify deps
         run: go mod verify
 
